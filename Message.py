@@ -1,9 +1,5 @@
-import time, logging
-from datetime import datetime, timedelta
-import configparser
-import sys
+import time
 import paho.mqtt.client as mqtt
-import sqlite3
 from functools import wraps
 
 from MySensorsConstants import *
@@ -28,6 +24,7 @@ class Message:
             self.logger.debug(f"message wrap_connection {func} {args}")
             rc = -1
             count = 0
+            # TODO: This count should be configurable
             while (rc != 0) and (count < 5):
                 count += 1
                 try:
@@ -39,11 +36,41 @@ class Message:
             return(rc)
         return function_wrapper
 
+    def wrap_mqtt(func):
+        @wraps(func)
+        def function_wrapper(*args):
+            self = args[0]
+            self.logger.debug(f"message wrap_mqtt {func} {args}")
+            rc = -1
+            count = 0
+            # TODO: This count should be configurable
+            while (rc != 0) and (count < 5):
+                count += 1
+                try:
+                    rc = func(*args)
+                except ConnectionRefusedError as err:
+                    self.logger.error(f"MQTT connection error code {err}")
+                    time.sleep(self.maxTimeout/2)
+                if rc > 0:
+                    errmsg = mqtt.error_string(rc)
+                    self.logger.error(f"Error in Message.run_loop {rc} - {errmsg}")
+                    # TODO: This should be half of the Timeout value but not in scope...
+                    time.sleep(30)
+                    self.run_reconnect()
+            return(rc)
+        return function_wrapper
+
     @wrap_connection
     def run_connect(self, inHost, inPort, inTimeout):
         self.logger.debug(f"message run_connect {inHost} {inPort} {inTimeout}")
         return self.mqttClient.connect(inHost, inPort, inTimeout)
 
+    @wrap_connection
+    def run_reconnect(self):
+        self.logger.debug(f"message run_reconnect")
+        return self.mqttClient.reconnect()
+
+    @wrap_mqtt
     def run_loop(self, inTimeout):
         self.logger.debug(f"message run_loop {inTimeout}")
         rc = self.mqttClient.loop(inTimeout)
