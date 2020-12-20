@@ -1,15 +1,11 @@
-import time, logging
-from datetime import datetime, timedelta
-import configparser
-import sys
-import paho.mqtt.client as mqtt
-import sqlite3
+import logging
+
 
 from Controller import Controller
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-f_handler = logging.FileHandler("controller.log")
+f_handler = logging.TimedRotatingFileHandler("controller.log", when="d", interval=1, backupCount=7)
 f_handler.setLevel(logging.DEBUG)
 f_format = logging.Formatter("%(asctime)s:%(levelname)s: %(message)s")
 f_handler.setFormatter(f_format)
