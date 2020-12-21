@@ -1,10 +1,8 @@
-drop table state;
 create table state (
 	Name text,
 	Value
 );
 
-drop table gateway;
 create table gateway (
 	GatewayId integer primary key,
 	GatewayName text,
@@ -17,7 +15,6 @@ create table gateway (
 	LastSeen text
 );
 
-drop table node;
 create table node (
         NodeId integer primary key,
 	GatewayId integer,
@@ -29,7 +26,6 @@ create table node (
         LastSeen text
 );
 
-drop table sensor;
 create table sensor (
         SensorId integer primary key,
 	NodeId integer,
@@ -41,14 +37,23 @@ create table sensor (
         LastSeen text
 );
 
-drop table timedtrigger;
+create view v_sensor as
+select SensorId
+       , NodeId
+       , MySensorsSensorId
+       , SensorName
+       , SensorType
+       , VariableType
+       , CurrentValue
+       , datetime(lastseen, 'unixepoch') as LastSeen
+from sensor;
+
 create table timedtrigger (
         TimedTriggerId integer primary key,
 	Time text,
         ActionId integer
 );
 
-drop table action;
 create table action (
         ActionId integer primary key,
 	SensorName text,
