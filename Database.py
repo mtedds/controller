@@ -1,8 +1,4 @@
-import time, logging
-from datetime import datetime, timedelta
-import configparser
-import sys
-import paho.mqtt.client as mqtt
+
 import sqlite3
 
 
@@ -12,17 +8,18 @@ class Database:
         self.logger = inLogger
         self.logger.debug(f"database __init__ {inDatabaseFilename}")
 
-        self.dbConnection = sqlite3.connect(inDatabaseFilename)
+        # Set the lock timeout to 5 seconds, which is the default
+        self.dbConnection = sqlite3.connect(inDatabaseFilename, timeout=5)
         self.dbConnection.row_factory = sqlite3.Row
 
         self.dbConnection.create_function("to_seconds", 1, self.timeConvert)
 
         # This function is used to convert times (HH:MM:SS) to seconds
     def timeConvert(self, inTime):
-# Commented out as this could impact database performance
-#        self.logger.debug(f"database timeConvert {inTime}")
+        # Commented out as this could impact database performance
+        #self.logger.debug(f"database timeConvert {inTime}")
         numbers = inTime.split(":")
-        return(((int(numbers[0])*60 + int(numbers[1])) * 60 + int(numbers[2])))
+        return (int(numbers[0])*60 + int(numbers[1])) * 60 + int(numbers[2])
 
     def getLastSeconds(self):
         self.logger.debug(f"database getLastSeconds")
@@ -35,7 +32,7 @@ class Database:
                 )
         row = cursor.fetchone()
         cursor.close()
-        return(row[0])
+        return row[0]
 
     def setLastSeconds(self, inLastSeconds):
         self.logger.debug(f"database setLastSeconds {inLastSeconds}")
@@ -49,23 +46,23 @@ class Database:
                 )
         cursor.close()
         self.dbConnection.commit()
-        return(0)
+        return 0
 
     def gatewayNames(self):
         self.logger.debug(f"database gatewayNames")
-        return ([name[0] for name in self.dbConnection.execute("select GatewayName from gateway").fetchall()])
+        return [name[0] for name in self.dbConnection.execute("select GatewayName from gateway").fetchall()]
 
     def gatewayIds(self):
         self.logger.debug(f"database gatewayIds")
-        return ([name[0] for name in self.dbConnection.execute("select GatewayId from gateway").fetchall()])
+        return [name[0] for name in self.dbConnection.execute("select GatewayId from gateway").fetchall()]
 
     def gatewaySubscribes(self):
         self.logger.debug(f"database gatewaySubscribes")
-        return ([name[0] for name in self.dbConnection.execute("select SubscribeTopic from gateway").fetchall()])
+        return [name[0] for name in self.dbConnection.execute("select SubscribeTopic from gateway").fetchall()]
 
     def gatewayPublishes(self):
         self.logger.debug(f"database gatewayPublishes")
-        return ([name[0] for name in self.dbConnection.execute("select PublishTopic from gateway").fetchall()])
+        return [name[0] for name in self.dbConnection.execute("select PublishTopic from gateway").fetchall()]
 
     def gatewayFindFromSubscribeTopic(self, inSubscribeTopic):
         self.logger.debug(f"database gatewayFindFromSubscribeTopic {inSubscribeTopic}")
@@ -81,7 +78,7 @@ class Database:
         row = cursor.fetchone()
         cursor.close()
         self.logger.debug(f"database gatewayFindFromSubscribeTopic {inSubscribeTopic} = {row}")
-        return(row)
+        return row
 
     def nodeFindFromMyNode(self, inGatewayId, inMyNode):
         self.logger.debug(f"database nodeFindFromMyNode {inGatewayId}, {inMyNode}")
@@ -95,7 +92,7 @@ class Database:
                 (inGatewayId, inMyNode))
         row = cursor.fetchone()
         cursor.close()
-        return(row["NodeId"])
+        return row["NodeId"]
 
     def sensorFindFromMySensor(self, inNodeId, inMySensor):
         self.logger.debug(f"database sensorFindFromMySensor {inNodeId}, {inMySensor}")
@@ -109,7 +106,7 @@ class Database:
                 (inNodeId, inMySensor))
         row = cursor.fetchone()
         cursor.close()
-        return(row[0])
+        return row[0]
 
     def getNextId(self, inTable):
         self.logger.debug(f"database getNextId {inTable}")
@@ -119,7 +116,7 @@ class Database:
         cursor.execute(sql)
         row = cursor.fetchone()
         cursor.close()
-        return(row[0])
+        return row[0]
 
     # Creates a new node row with the values provided (generates the Id column)
     # Also updates the last seen date time
@@ -139,7 +136,7 @@ class Database:
         cursor.execute(sql1 + sql2, vals)
         self.dbConnection.commit()
         cursor.close()
-        return(nextObjectId)
+        return nextObjectId
 
     # Takes a key field value with a set of updates and applies to the node row
     # Assumes key column name is "Table"Id, eg. NodeId
@@ -157,7 +154,7 @@ class Database:
         cursor.execute(sql, vals)
         self.dbConnection.commit()
         cursor.close()
-        return(0)
+        return 0
 
     # Check if the node exists and create if not
     # We are only provided the owning Gateway and MySensors Node Id
@@ -168,7 +165,7 @@ class Database:
             self.objectUpdate("Node", nodeFound, inValues)
         elif nodeFound == -1:
             nodeFound = self.objectCreate("Node", inValues)
-        return(nodeFound)
+        return nodeFound
 
     # Check if the sensor exists and create if not
     # We are only provided the owning NodeId and MySensors Sensor Id
@@ -177,10 +174,10 @@ class Database:
         sensorFound = self.sensorFindFromMySensor(inNodeId, inMySensor)
         if sensorFound >= 0:
             self.objectUpdate("Sensor", sensorFound, inValues)
-            return(1)
+            return 1
         elif sensorFound == -1:
             sensorFound = self.objectCreate("Sensor", inValues)
-        return(sensorFound)
+        return sensorFound
 
     def findSensorByName(self, inSensorName):
         self.logger.debug(f"database findSensorByName {inSensorName}")
@@ -194,7 +191,7 @@ class Database:
                 (inSensorName,))
         row = cursor.fetchone()
         cursor.close()
-        return(row)
+        return row
 
     def timedActionsFired(self, inStartSeconds, inEndSeconds):
         self.logger.debug(f"database timedActionsFired {inStartSeconds}, {inEndSeconds}")
@@ -209,7 +206,7 @@ class Database:
                 (inStartSeconds, inEndSeconds))
         actions = cursor.fetchall()
         cursor.close()
-        return(actions)
+        return actions
 
     def nextTriggerTime(self, inSeconds):
         self.logger.debug(f"database nextTriggerTime {inSeconds}")
@@ -219,8 +216,9 @@ class Database:
                 """select ifnull(min(to_seconds(TimedTrigger.Time)), 86400) as Seconds
                 from TimedTrigger
                 where to_seconds(TimedTrigger.Time) > ?
+                order by to_seconds(TimedTrigger.Time) asc
                 """,
                 (inSeconds,))
         seconds = cursor.fetchone()
         cursor.close()
-        return(seconds["Seconds"])
+        return seconds["Seconds"]

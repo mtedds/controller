@@ -6,16 +6,21 @@ from MySensorsConstants import *
 
 class Message:
 
-    def __init__(self, inHost, inPort, inTimeout, inClient, inWhenConnect, inWhenMessage, inLogger):
+    def __init__(self, inHost, inPort, inTimeout, inClient, in_when_message, in_gateways, inLogger):
         self.maxTimeout = inTimeout
+        self.gateways = in_gateways
         self.logger = inLogger
-        self.logger.debug(f"message __init__ {inHost}, {inPort}, {inTimeout}, {inWhenConnect}, {inWhenMessage}")
+        self.logger.debug(f"message __init__ {inHost}, {inPort}, {inTimeout}, {in_when_message}")
 
         self.mqttClient = mqtt.Client(inClient, True)
-        self.mqttClient.on_connect = inWhenConnect
-        self.mqttClient.on_message = inWhenMessage
+        self.mqttClient.on_connect = self.when_connect
+        self.mqttClient.on_message = in_when_message
 
+        self.connected = -1
         self.run_connect(inHost, inPort, inTimeout)
+
+        while self.connected != 0:
+            self.run_loop(5)
 
     def wrap_connection(func):
         @wraps(func)
@@ -33,7 +38,8 @@ class Message:
                 except ConnectionRefusedError as err:
                     self.logger.error(f"MQTT connection error code {err}")
                     time.sleep(self.maxTimeout/2)
-            return(rc)
+            self.connected = rc
+            return rc
         return function_wrapper
 
     def wrap_mqtt(func):
@@ -63,12 +69,22 @@ class Message:
     @wrap_connection
     def run_connect(self, inHost, inPort, inTimeout):
         self.logger.debug(f"message run_connect {inHost} {inPort} {inTimeout}")
-        return self.mqttClient.connect(inHost, inPort, inTimeout)
+        rc = self.mqttClient.connect(inHost, inPort, inTimeout)
+
+        return rc
 
     @wrap_connection
     def run_reconnect(self):
         self.logger.debug(f"message run_reconnect")
         return self.mqttClient.reconnect()
+
+    # The callback for when the client receives a CONNACK response from the server.
+    def when_connect(self, client, userdata, flags, rc):
+        self.logger.debug(f"message when_connect {client}, {userdata}, {flags}, {rc}")
+        self.logger.info(f"Connected with result code {rc}")
+        for gatewaySubscribe in self.gateways:
+            self.subscribe(gatewaySubscribe)
+        self.connected = rc
 
     @wrap_mqtt
     def run_loop(self, inTimeout):

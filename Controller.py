@@ -13,14 +13,10 @@ class Controller:
         self.logger.debug(f"controller __init__")
 
         self.connected = -1
-        # TODO: Turn these constants into parameters (config file or command line)
+        # TODO: Add these as constants to a separate constants.py module
         self.thisDatabase = Database("controller.db", self.logger)
         self.thisMessage = Message("homeserver", 1883, 60, "controller",
-                                   self.when_connect, self.when_message, self.logger)
-
-        # TODO: This should be handled in the Message object
-        while self.connected != 0:
-            self.thisMessage.run_loop(5)
+                                   self.when_message, self.thisDatabase.gatewaySubscribes(), self.logger)
 
         for gatewayPublishes in self.thisDatabase.gatewayPublishes():
             self.thisMessage.discover(gatewayPublishes)
@@ -62,14 +58,6 @@ class Controller:
             lastSeconds = seconds
             self.thisDatabase.setLastSeconds(lastSeconds)
             self.thisMessage.run_loop(nextTime)
-
-    # The callback for when the client receives a CONNACK response from the server.
-    def when_connect(self, client, userdata, flags, rc):
-        self.logger.debug(f"controller when_connect {client}, {userdata}, {flags}, {rc}")
-        self.logger.info(f"Connected with result code {rc}")
-        for gatewaySubscribe in self.thisDatabase.gatewaySubscribes():
-            self.thisMessage.subscribe(gatewaySubscribe)
-        self.connected = rc
 
     # The callback for when a PUBLISH message is received from the server.
     def when_message(self, client, userdata, msg):
