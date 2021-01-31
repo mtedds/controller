@@ -1,8 +1,21 @@
 
 import sqlite3
+from datetime import datetime
+
+
+# This function is used to convert times (HH:MM:SS) to seconds
+def timeConvert(inTime):
+    # Commented out as this could impact database performance
+    # self.logger.debug(f"database timeConvert {inTime}")
+    numbers = inTime.split(":")
+    return (int(numbers[0])*60 + int(numbers[1])) * 60 + int(numbers[2])
 
 
 class Database:
+    # TODO: Database name / location needs to be in a constants import
+    # to support web2py use of this class (then doesn't need to be an argument here
+
+    # TODO: what to do about the logger when using web2py?
 
     def __init__(self, inDatabaseFilename, inLogger):
         self.logger = inLogger
@@ -12,14 +25,7 @@ class Database:
         self.dbConnection = sqlite3.connect(inDatabaseFilename, timeout=5)
         self.dbConnection.row_factory = sqlite3.Row
 
-        self.dbConnection.create_function("to_seconds", 1, self.timeConvert)
-
-        # This function is used to convert times (HH:MM:SS) to seconds
-    def timeConvert(self, inTime):
-        # Commented out as this could impact database performance
-        #self.logger.debug(f"database timeConvert {inTime}")
-        numbers = inTime.split(":")
-        return (int(numbers[0])*60 + int(numbers[1])) * 60 + int(numbers[2])
+        self.dbConnection.create_function("to_seconds", 1, timeConvert)
 
     def getLastSeconds(self):
         self.logger.debug(f"database getLastSeconds")
@@ -193,6 +199,18 @@ class Database:
         cursor.close()
         return row
 
+    def get_sensor_value_by_name(self, in_sensor_name):
+        self.logger.debug(f"database get_sensor_value_by_name {in_sensor_name}")
+        cursor = self.dbConnection.cursor()
+        cursor.execute(
+            """select ifnull(CurrentValue, "") as currentvalue
+            from Sensor
+            where SensorName = ?""",
+            (in_sensor_name,))
+        row = cursor.fetchone()
+        cursor.close()
+        return row["currentvalue"]
+
     def timedActionsFired(self, inStartSeconds, inEndSeconds):
         self.logger.debug(f"database timedActionsFired {inStartSeconds}, {inEndSeconds}")
         cursor = self.dbConnection.cursor()
@@ -222,3 +240,57 @@ class Database:
         seconds = cursor.fetchone()
         cursor.close()
         return seconds["Seconds"]
+
+    def hc_is_on(self):
+        self.logger.debug(f"database hc_is_on")
+
+        return self.generic_is_on("HC Prog")
+
+    def dhw_is_on(self):
+        self.logger.debug(f"database dhw_is_on")
+
+        return self.generic_is_on("DHW Prog")
+
+    def generic_is_on(self, in_sensor_pre):
+        self.logger.debug(f"database generic_is_on {in_sensor_pre}")
+
+        intervals = self.get_intervals(in_sensor_pre)
+
+        now = datetime.now()
+        # Monday is zero in both cases
+        current_day_of_week = now.weekday()
+        current_time = now.hour * 60 + now.minute
+
+        for interval in range(3):
+            # This assumes format of interval is: [HH:MM, HH:MM]
+            start_minutes = int(intervals[current_day_of_week][interval][1:3]) * 60 + \
+                            int(intervals[current_day_of_week][interval][4:6])
+            end_minutes = int(intervals[current_day_of_week][interval][8:10]) * 60 + \
+                          int(intervals[current_day_of_week][interval][11:13])
+            if start_minutes <= current_time <= end_minutes:
+                return True
+
+        return False
+
+    def get_intervals(self, in_sensor_pre):
+        self.logger.debug(f"database get_intervals {in_sensor_pre}")
+
+        cursor = self.dbConnection.cursor()
+        cursor.execute(
+            f"""select Sensor.CurrentValue
+            from Sensor
+            where Sensorname like '{in_sensor_pre}%'
+            order by SensorId
+            """)
+        raw_intervals = cursor.fetchall()
+        cursor.close()
+
+        intervals = {}
+        counter = 0
+        for day in range(7):
+            intervals[day] = {}
+            for interval in range(3):
+                intervals[day][interval] = raw_intervals[counter]["CurrentValue"]
+                counter += 1
+
+        return intervals

@@ -1,4 +1,5 @@
 import time
+import sys
 import paho.mqtt.client as mqtt
 from functools import wraps
 
@@ -38,6 +39,8 @@ class Message:
                 except ConnectionRefusedError as err:
                     self.logger.error(f"MQTT connection error code {err}")
                     time.sleep(self.maxTimeout/2)
+                except:
+                    self.logger.error(f"MQTT connection unexpected error: {sys.exc_info()[0]}")
             self.connected = rc
             return rc
         return function_wrapper
@@ -59,7 +62,7 @@ class Message:
                     time.sleep(self.maxTimeout/2)
                 if rc > 0:
                     errmsg = mqtt.error_string(rc)
-                    self.logger.error(f"Error in Message.run_loop {rc} - {errmsg}")
+                    self.logger.error(f"Error in {func}: {rc} - {errmsg}")
                     # TODO: This should be half of the Timeout value but not in scope...
                     time.sleep(30)
                     self.run_reconnect()

@@ -15,20 +15,45 @@ create table gateway (
 	LastSeen text
 );
 
+create view v_gateway as
+select
+	GatewayId,
+	GatewayName,
+	BrokerHost,
+	ClientId,
+	SubscribeTopic,
+	PublishTopic,
+	Username,
+	Password,
+	datetime(lastseen, 'unixepoch') as LastSeen
+from gateway
+;
+
 create table node (
         NodeId integer primary key,
-	GatewayId integer,
+	    GatewayId integer,
         MySensorsNodeId integer,
         NodeName text,
-	NodeType integer,
+	    NodeType integer,
         LibraryVersion text,
         CodeVersion text,
         LastSeen text
 );
 
+create view v_node as
+select NodeId
+       , GatewayId
+       , MySensorsNodeId
+       , NodeName
+       , NodeType
+       , LibraryVersion
+       , CodeVersion
+       , datetime(lastseen, 'unixepoch') as LastSeen
+from node;
+
 create table sensor (
         SensorId integer primary key,
-	NodeId integer,
+	    NodeId integer,
         MySensorsSensorId integer,
         SensorName text,
         SensorType text,
@@ -56,7 +81,7 @@ create table timedtrigger (
 
 create table action (
         ActionId integer primary key,
-	SensorName text,
+	    SensorName text,
         VariableType text,
         SetValue text
 );
