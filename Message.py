@@ -5,13 +5,14 @@ from functools import wraps
 
 from MySensorsConstants import *
 
+
 class Message:
 
     def __init__(self, inHost, inPort, inTimeout, inClient, in_when_message, in_gateways, inLogger):
         self.maxTimeout = inTimeout
         self.gateways = in_gateways
         self.logger = inLogger
-        self.logger.debug(f"message __init__ {inHost}, {inPort}, {inTimeout}, {in_when_message}")
+        self.logger.debug(f"message __init__ {inHost}, {inPort}, {inTimeout}, {inClient}, {in_gateways}")
 
         self.mqttClient = mqtt.Client(inClient, True)
         self.mqttClient.on_connect = self.when_connect
@@ -122,12 +123,25 @@ class Message:
                 I_PRESENTATION,
                 "")
 
-    def setSensor(self, inPublishTopic, inMySensorsNodeId, inMySensorsSensorId, inVariableType, inSetValue):
-        self.logger.debug(f"message setSensor {inPublishTopic}, {inMySensorsNodeId}, {inMySensorsSensorId}, {inVariableType}, {inSetValue}")
+    def set_sensor(self, inPublishTopic, inMySensorsNodeId, inMySensorsSensorId, inVariableType, inSetValue):
+        self.logger.debug(f"message set_sensor {inPublishTopic}, {inMySensorsNodeId}, {inMySensorsSensorId}, {inVariableType}, {inSetValue}")
         msg = (inPublishTopic + "/" +
                str(inMySensorsNodeId) + "/" +
                str(inMySensorsSensorId) + "/" +
                str(COMMAND_SET) + "/0/" +
                str(inVariableType))
-        self.logger.info(f"message setSensor publishing {msg} {inSetValue}")
+        self.logger.info(f"message set_sensor publishing {msg} {inSetValue}")
         self.mqttClient.publish(msg, str(inSetValue))
+
+    def publish(self, in_topic, in_payload):
+        self.logger.debug(f"message publish {in_topic}, {in_payload}")
+
+        return self.mqttClient.publish(in_topic, in_payload)
+
+    # This is used by the front end to send a message to the controller to set a sensor value
+    def set_sensor_control(self, in_sensor_name, in_sensor_value):
+        self.logger.debug(f"message publish {in_sensor_name}, {in_sensor_value}")
+
+        msg = f"Control/0/{in_sensor_name}/{COMMAND_SET}/0/48"
+
+        return self.publish(msg, in_sensor_value)

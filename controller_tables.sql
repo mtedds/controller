@@ -75,9 +75,23 @@ from sensor;
 
 create table timedtrigger (
         TimedTriggerId integer primary key,
-	Time text,
-        ActionId integer
+        Description text,
+        Day integer
+	    Time text,
+        ActionId integer,
+        LastSeen text
 );
+
+create view v_timedtrigger as
+select timedtriggerid
+       , description
+       , day
+       , time
+       , actionid
+       , status
+       , datetime(lastseen, 'unixepoch') as LastSeen
+from timedtrigger;
+
 
 create table action (
         ActionId integer primary key,

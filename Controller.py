@@ -1,9 +1,17 @@
 from datetime import datetime
+import json
 
 from Database import Database
 from Message import Message
+from Shelly import Shelly
 
 from MySensorsConstants import *
+
+
+def jsonKeys2int(x):
+    if isinstance(x, dict):
+        return {int(k): v for k, v in x.items()}
+    return x
 
 
 class Controller:
@@ -16,10 +24,13 @@ class Controller:
         # TODO: Add these as constants to a separate constants.py module
         self.thisDatabase = Database("controller.db", self.logger)
         self.thisMessage = Message("homeserver", 1883, 60, "controller",
-                                   self.when_message, self.thisDatabase.gatewaySubscribes(), self.logger)
+                                   self.when_message, self.thisDatabase.gatewaySubscribes().append("Control"),
+                                   self.logger)
 
-        for gatewayPublishes in self.thisDatabase.gatewayPublishes():
-            self.thisMessage.discover(gatewayPublishes)
+        for gateway_publishes in self.thisDatabase.gatewayPublishes():
+            self.thisMessage.discover(gateway_publishes)
+
+        self.this_shelly = Shelly(self.thisMessage, self.thisDatabase, self.logger)
 
         # This is the maximum time we will wait for a message
         # Should be half the mqtt timeout duration
@@ -62,14 +73,16 @@ class Controller:
     # The callback for when a PUBLISH message is received from the server.
     def when_message(self, client, userdata, msg):
         self.logger.debug(f"controller when_message {client}, {userdata}, {msg}")
-        msgSplit = msg.topic.split("/")
-        msgPublishTopic = msgSplit[0]
-        msgNodeId = msgSplit[1]
-        msgSensorId = msgSplit[2]
-        msgCommand = msgSplit[3]
-        msgType = msgSplit[5]
         msgPayload = str(msg.payload.decode("UTF-8"))
         self.logger.info(f"Read message {msg.topic} {msgPayload}")
+
+        topic_split = msg.topic.split("/")
+        msgPublishTopic = topic_split[0]
+        msgNodeId = topic_split[1]
+        msgSensorId = topic_split[2]
+        msgCommand = topic_split[3]
+        if len(topic_split) > 5:
+            msgType = topic_split[5]
         # Leaving this in for now but need to remove at some point!
         # - really useful to see what is going on
         print(msg.topic+" "+msgPayload)
@@ -77,12 +90,19 @@ class Controller:
         gateway = self.thisDatabase.gatewayFindFromSubscribeTopic(msgPublishTopic)
         self.thisDatabase.objectUpdate("Gateway", gateway["GatewayId"], {})
 
+        # Process a message directly from a Shelly device or an internal command
+        # Note that we have hard-coded the shelly device name and so may need to change if we add another
+        # TODO Add a list of Shelly device names - probably in the Shelly class
+        if msgPublishTopic == "shellies" and \
+                (msgNodeId == "shelly2" or (msgCommand == COMMAND_INTERNAL and msgPayLoad == "")):
+            self.this_shelly.process_message(msg)
+
         # Discover response
-        if ((msgCommand == COMMAND_INTERNAL) and
+        elif ((msgCommand == COMMAND_INTERNAL) and
                 (msgType == I_DISCOVER_RESPONSE)):
             self.processDiscoverResponse(gateway, msgNodeId, msgPayload)
 
-        # Node presemtation
+        # Node presentation
         elif ((msgCommand == COMMAND_PRESENTATION) and
                 ((msgType == S_ARDUINO_REPEATER_NODE)
               or (msgType == S_ARDUINO_NODE))):
@@ -102,6 +122,9 @@ class Controller:
         elif ((msgCommand == COMMAND_PRESENTATION) and
                 (int(msgSensorId) < 255)):
             self.processSensorPresentation(gateway, msgNodeId, msgSensorId, msgType, msgPayload)
+
+        elif msgType == '48':
+            self.process_control(msgSensorId, msgCommand, msgPayload)
 
         # Sensor set
         elif msgCommand == COMMAND_SET:
@@ -152,7 +175,7 @@ class Controller:
         values = {}
         values["MySensorsNodeId"] = inMyNode
         values["GatewayId"] = inGateway["GatewayId"]
-    # This will update the last seen date time and create the node if not found
+        # This will update the last seen date time and create the node if not found
         nodeId = self.thisDatabase.nodeCreateUpdate(inGateway["GatewayId"], inMyNode, values)
 
         # Update the Sensor with these details
@@ -163,27 +186,29 @@ class Controller:
         values["SensorType"] = inSensorType
         self.thisDatabase.sensorCreateUpdate(nodeId, inMySensor, values)
 
+    def process_control(self, in_sensor, in_command, in_payload):
+        self.logger.debug(f"controller process_control {in_sensor}, {in_command}, {in_payload}")
+
+        if (in_sensor == "HC" or in_sensor == "DHW") and in_command == COMMAND_SET:
+            self.thisDatabase.store_prog(in_sensor, json.loads(in_payload, object_hook=jsonKeys2int))
+
     def processSensorSet(self, inGateway, inMyNode, inMySensor, inVariableType, inValue):
         self.logger.debug(f"controller processSensorSet {inGateway}, {inMyNode}, {inMySensor}, {inVariableType}, {inValue}")
-        values = {}
-        values["MySensorsNodeId"] = inMyNode
-        values["GatewayId"] = inGateway["GatewayId"]
-    # This will update the last seen date time and create the node if not found
+
+        values = {"MySensorsNodeId": inMyNode, "GatewayId": inGateway["GatewayId"]}
+        # This will update the last seen date time and create the node if not found
         nodeId = self.thisDatabase.nodeCreateUpdate(inGateway["GatewayId"], inMyNode, values)
 
         # Update the Sensor with these details
-        values = {}
-        values["NodeId"] = nodeId
-        values["MySensorsSensorId"] = inMySensor
-        values["VariableType"] = inVariableType
-        values["CurrentValue"] = inValue
+        values = {"NodeId": nodeId, "MySensorsSensorId": inMySensor, "VariableType": inVariableType,
+                  "CurrentValue": inValue}
         self.thisDatabase.sensorCreateUpdate(nodeId, inMySensor, values)
 
     def executeAction(self, inAction):
         self.logger.debug(f"controller executeAction {inAction}")
-        sensorDetails = self.thisDatabase.findSensorByName(inAction["SensorName"])
-        if sensorDetails != None:
-            self.thisMessage.setSensor(
+        sensorDetails = self.thisDatabase.find_sensor_by_name(inAction["SensorName"])
+        if sensorDetails is not None:
+            self.thisMessage.set_sensor(
                     sensorDetails["PublishTopic"],
                     sensorDetails["MySensorsNodeId"],
                     sensorDetails["MySensorsSensorId"],

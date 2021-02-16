@@ -91,3 +91,25 @@ values (
 	""
 );
 
+insert into Gateway (
+	GatewayId,
+	GatewayName,
+	BrokerHost,
+	ClientId,
+	SubscribeTopic,
+	PublishTopic,
+	Username,
+	Password,
+	LastSeen
+)
+values (
+	5,
+	"Shelly",
+	"localhost:1883",
+	"shelly",
+	"shellies",
+	"shellies",
+	"",
+	"",
+	""
+);
