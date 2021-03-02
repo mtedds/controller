@@ -187,7 +187,7 @@ class Database:
         self.logger.debug(f"database find_sensor_by_name {inSensorName}")
         cursor = self.dbConnection.cursor()
         cursor.execute(
-                """select PublishTopic, MySensorsNodeId, MySensorsSensorId, VariableType
+                """select PublishTopic, SubscribeTopic, MySensorsNodeId, MySensorsSensorId, VariableType, Node.NodeId
                 from Gateway, Node, Sensor
                 where SensorName = ?
                 and Sensor.NodeId = Node.NodeId

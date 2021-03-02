@@ -129,7 +129,7 @@ class Controller:
                 (msgType == I_SKETCH_VERSION)):
             self.processSketchVersion(gateway, msgNodeId, msgPayload)
 
-        # Sensor presemtation
+        # Sensor presentation
         elif ((msgCommand == COMMAND_PRESENTATION) and
                 (int(msgSensorId) < 255)):
             self.processSensorPresentation(gateway, msgNodeId, msgSensorId, msgType, msgPayload)
@@ -200,6 +200,7 @@ class Controller:
     def process_control(self, in_sensor, in_command, in_payload):
         self.logger.debug(f"controller process_control {in_sensor}, {in_command}, {in_payload}")
 
+        # This handles ISG sending HC or DHW programme
         if (in_sensor == "HC" or in_sensor == "DHW") and in_command == COMMAND_SET:
             self.thisDatabase.store_prog(in_sensor, json.loads(in_payload, object_hook=jsonKeys2int))
 
@@ -210,21 +211,32 @@ class Controller:
     def process_sensor_set_from_ui(self, in_sensor, in_payload):
         self.logger.debug(f"controller process_sensor_set_from_ui {in_sensor}, {in_payload}")
 
-        sensor_details = self.thisDatabase.find_sensor_by_name(in_sensor)
-        self.thisMessage.set_sensor(sensor_details["PublishTopic"],
-                                    sensor_details["MySensorsNodeId"],
-                                    sensor_details["MySensorsSensorId"],
-                                    sensor_details["VariableType"],
-                                    in_payload)
+        payload = in_payload.split(",")
+        value = payload[0]
 
-        # Update the Sensor with these details
-        values = {"NodeId": sensor_details["MySensorsNodeId"],
-                  "MySensorsSensorId": sensor_details["MySensorsSensorId"],
-                  "VariableType": sensor_details["VariableType"],
-                  "CurrentValue": in_payload}
-        # TODO this doesn't seem to work...
-        self.thisDatabase.sensorCreateUpdate(
-            sensor_details["MySensorsNodeId"], sensor_details["MySensorsSensorId"], values)
+        if len(payload) < 2:
+            sensor_details = self.thisDatabase.find_sensor_by_name(in_sensor)
+            self.thisMessage.set_sensor(sensor_details["PublishTopic"],
+                                        sensor_details["MySensorsNodeId"],
+                                        sensor_details["MySensorsSensorId"],
+                                        sensor_details["VariableType"],
+                                        value)
+
+            # Update the Sensor with these details
+            values = {"NodeId": sensor_details["NodeId"],
+                      "MySensorsSensorId": sensor_details["MySensorsSensorId"],
+                      "VariableType": sensor_details["VariableType"],
+                      "CurrentValue": value}
+
+            self.thisDatabase.sensorCreateUpdate(
+                sensor_details["NodeId"], sensor_details["MySensorsSensorId"], values)
+
+        else:
+            time = payload[1]
+            # Now need to generate a temporary trigger appropriately
+            self.logger.debug(f"controller process_sensor_set_from_ui need to process trigger at {time}")
+
+        return
 
     def processSensorSet(self, inGateway, inMyNode, inMySensor, inVariableType, inValue):
         self.logger.debug(f"controller processSensorSet {inGateway}, {inMyNode}, {inMySensor}, {inVariableType}, {inValue}")
