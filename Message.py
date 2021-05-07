@@ -146,8 +146,17 @@ class Message:
 
     # This is used by the front end to send a message to the controller to set a sensor value
     def set_sensor_control(self, in_sensor_name, in_sensor_value):
-        self.logger.debug(f"message  {in_sensor_name}, {in_sensor_value}")
+        self.logger.debug(f"message set_sensor_control {in_sensor_name}, {in_sensor_value}")
 
-        msg = f"Control/0/{in_sensor_name}/{COMMAND_SET}/0/48"
+        msg = f"Control/0/{in_sensor_name}/{COMMAND_SET}/0/24"
 
         return self.publish(msg, in_sensor_value)
+
+        # This is used by the front end to send a message to the controller to set or update a trigger
+    def set_trigger_control(self, in_sensor_name, in_day, in_group, in_value, in_time):
+        self.logger.debug(f"message set_trigger_control {in_sensor_name} {in_day} {in_group} {in_value} {in_time}")
+
+        msg = f"Control/0/{in_sensor_name}/{COMMAND_SET}/0/25"
+        payload = f"{in_day} {in_group} {in_value} {in_time}"
+
+        return self.publish(msg, payload)

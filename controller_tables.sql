@@ -96,7 +96,12 @@ from timedtrigger;
 create table action (
         ActionId integer primary key,
 	    SensorName text,
+	    TimedTriggerToUpdate integer,
         VariableType text,
-        SetValue text
+        SetValue text,
+        LastSeen text
 );
 
+create view v_action as
+select actionid, sensorname, timedtriggertoupdate, variabletype, setvalue, datetime(lastseen, 'unixepoch') as LastSeen
+from action;
