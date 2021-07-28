@@ -1,3 +1,4 @@
+#!/bin/bash
 while true
 do
         python3 runController.py > controller.out 2>&1
