@@ -277,6 +277,10 @@ class Database:
     def hp_is_on(self, in_sensor):
         self.logger.debug(f"database hp_is_on {in_sensor}")
 
+        if in_sensor == "HC":
+            if int(self.get_sensor_value_by_name("Operating Mode")) == 5:
+                return False
+
         interval = self.current_relay_interval(in_sensor)
 
         if interval[0]["SetValue"] == "0":

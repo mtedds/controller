@@ -22,7 +22,7 @@ class Controller:
 
         self.connected = -1
         # TODO: Add these as constants to a separate constants.py module
-        self.thisDatabase = Database("controller.db", self.logger)
+        self.thisDatabase = Database("/home/pi/controller/controller/controller.db", self.logger)
         all_gateways = self.thisDatabase.gatewaySubscribes()
         all_gateways.append("shellies")
         all_gateways.append("Control")
