@@ -45,3 +45,5 @@ insert into timedtrigger (timedtriggerid, description, day, time, actionid, stat
 insert into timedtrigger (timedtriggerid, description, day, time, actionid, status) values (61,"Ufloor First Prog Sat 0 off", 5, "23:00:00", 8, "Active");
 insert into timedtrigger (timedtriggerid, description, day, time, actionid, status) values (62,"Ufloor First Prog Sun 0 on", 6, "05:00:00", 7, "Active");
 insert into timedtrigger (timedtriggerid, description, day, time, actionid, status) values (63,"Ufloor First Prog Sun 0 off", 6, "23:00:00", 8, "Active");
+
+insert into timedtrigger (timedtriggerid, description, day, time, actionid, status) values (64,"Reset daily consumption", -1, "00:00:01", 9, "Active");

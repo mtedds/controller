@@ -656,6 +656,23 @@ class Database:
         self.dbConnection.commit()
         cursor.close()
 
+    def switch_triggers(self, in_sensor, in_value):
+        self.logger.debug(f"database switch_triggers {in_sensor} {in_value}")
+
+        # Update all the ON triggers for a particular sensor to be inactive / active
+
+        sql = f"""update timedtrigger set status = ?
+                    where timedtriggerid in
+                      (select timedtriggerid from timedtrigger, action
+                       where timedtrigger.actionid = action.actionid
+                         and action.sensorname = ?
+                         and action.setvalue = 1)
+        """
+
+        cursor = self.dbConnection.cursor()
+        cursor.execute(sql, (in_value, in_sensor))
+        self.dbConnection.commit()
+        cursor.close()
 
     def store_prog(self, in_sensor, in_intervals):
         self.logger.debug(f"database store_prog {in_sensor} {in_intervals}")

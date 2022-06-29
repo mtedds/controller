@@ -209,6 +209,9 @@ class Controller:
         if in_sensor == "DHW":
             return self.DHW_set(in_sensor, in_payload)
 
+        if in_sensor == "HC":
+            return self.HC_set(in_sensor, in_payload)
+
         # This is just a normal sensor set
 
         payload = in_payload.split(",")
@@ -463,6 +466,33 @@ class Controller:
                 self.thisMessage.set_sensor(publish_topic, 100, sensor_val_tomorrow, 48,
                                             f"{new_tomorrow_start_time:d};{new_tomorrow_end_time:d}")
 
+    def HC_set(self, in_sensor, in_payload):
+        self.logger.debug(f"controller HC_set {in_sensor}, {in_payload}")
+
+        # Used the DHW_set method as a template for this method so check back there if some of those features
+        # are required.
+
+        payload = in_payload.split(",")
+        value = int(payload[0])
+
+        # Operating Mode 2 is Programmed Mode
+        new_operating_mode = 2
+        trigger_status = "Active"
+        if value == 0:
+            # Operating Mode 5 is DWH only
+            new_operating_mode = 5
+            trigger_status = "Inactive"
+
+        # Update all of the timed triggers for the Heating switches to be active or inactive
+        self.thisDatabase.switch_triggers("Radiators relay", trigger_status)
+        self.thisDatabase.switch_triggers("Ufloor ground relay", trigger_status)
+        self.thisDatabase.switch_triggers("Ufloor first relay", trigger_status)
+
+        mysensor = self.thisDatabase.find_sensor_by_name("Operating Mode")
+
+        # Send the command to change the Operating Mode in the ISG
+        return self.thisMessage.set_sensor(mysensor["PublishTopic"], mysensor["MySensorsNodeId"],
+                                           mysensor["MySensorsSensorId"], mysensor["VariableType"], new_operating_mode)
 
     def processSensorSet(self, inGateway, inMyNode, inMySensor, inVariableType, inValue):
         self.logger.debug(f"controller processSensorSet {inGateway}, {inMyNode}, {inMySensor}, {inVariableType}, {inValue}")
@@ -475,19 +505,28 @@ class Controller:
             # This will update the last seen date time and create the node if not found
             nodeId = self.thisDatabase.nodeCreateUpdate(inGateway["GatewayId"], inMyNode, values)
 
+            # If this is a set sensor from other sensor, go get the value
+            setValue = inValue
+            if inVariableType == "Sensor":
+                setValue = self.thisDatabase.get_sensor_value_by_name(inValue)
+
             # Update the Sensor with these details
             values = {"NodeId": nodeId, "MySensorsSensorId": inMySensor, "VariableType": inVariableType,
-                      "CurrentValue": inValue}
+                      "CurrentValue": setValue}
             self.thisDatabase.sensorCreateUpdate(nodeId, inMySensor, values)
 
     def execute_action(self, in_action):
-        self.logger.debug(f"controller execute_action {in_action}")
+        self.logger.debug(f"controller execute_action {in_action['ActionId']} {in_action['SensorName']}")
 
         if in_action["Status"] == "Active" or in_action["Status"] == "Once":
             sensor_details = self.thisDatabase.find_sensor_by_name(in_action["SensorName"])
             if sensor_details is not None:
+                # If this is a Shelley set, it must be an internal process so send to subscribe queue
+                topic = sensor_details["PublishTopic"]
+                if topic[0:6] == "shelly":
+                    topic = sensor_details["SubscribeTopic"]
                 self.thisMessage.set_sensor(
-                        sensor_details["PublishTopic"],
+                        topic,
                         sensor_details["MySensorsNodeId"],
                         sensor_details["MySensorsSensorId"],
                         in_action["VariableType"],

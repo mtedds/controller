@@ -19,7 +19,8 @@ class Shelly:
         self.sensors = {"power": {"id": 0, "type": 13, "variable": 17, "name": "Current Watts"},
                         "voltage": {"id": 1, "type": 30, "variable": 38, "name": "Current Voltage"},
                         "total": {"id": 2, "type": 13, "variable": 18, "name": "Total Energy WH"},
-                        "energy": {"id": 3, "type": 13, "variable": 28, "name": "Total Energy WMin"}}
+                        "energy": {"id": 3, "type": 13, "variable": 28, "name": "Total Energy WMin"},
+                        "total day": {"id": 4, "type": 13, "variable": 18, "name": "Begin Day Total Energy WH"}}
 
         self.presentation()
         self.discover_response()
