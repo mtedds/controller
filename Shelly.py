@@ -19,8 +19,7 @@ class Shelly:
         self.sensors = {"power": {"id": 0, "type": 13, "variable": 17, "name": "Current Watts"},
                         "voltage": {"id": 1, "type": 30, "variable": 38, "name": "Current Voltage"},
                         "total": {"id": 2, "type": 13, "variable": 18, "name": "Total Energy WH"},
-                        "energy": {"id": 3, "type": 13, "variable": 28, "name": "Total Energy WMin"},
-                        "total day": {"id": 4, "type": 13, "variable": 18, "name": "Begin Day Total Energy WH"}}
+                        "energy": {"id": 3, "type": 13, "variable": 28, "name": "Total Energy WMin"}}
 
         self.presentation()
         self.discover_response()
@@ -46,6 +45,12 @@ class Shelly:
             if shelly_sensor_id == "0" and shelly_sensor in self.sensors.keys():
                 self.message_handler.set_sensor(shelly_device_name, self.node_id, self.sensors[shelly_sensor]["id"],
                                                 self.sensors[shelly_sensor]["variable"], sensor_value)
+
+                # When we get the epoch total, calculate and send out the daily total
+                if shelly_sensor == "total":
+                    day_total_sensor = "total day"
+                    self.message_handler.set_sensor(shelly_device_name, self.node_id, 5, 18,
+                    int(float(sensor_value) - float(self.database.get_sensor_value_by_name("Begin Day Total Energy WH"))))
 
         else:
             # This is if we are processing mySensors messages (eg. Presentation , discover, etc)
