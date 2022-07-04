@@ -348,7 +348,9 @@ class Database:
         trigger_times = cursor.fetchall()
         cursor.close()
 
-        # TODO If don't find any, return nothing here
+        # If don't find any, return nothing here
+        if len(trigger_times) == 0:
+            return {}
 
         # Prime the previous trigger just in case we are early on Monday morning
         # - set it to the very last trigger in the week (last on Sunday)
@@ -407,8 +409,11 @@ class Database:
     def next_relay_switch_time_value(self, in_sensor_name, in_value):
         self.logger.debug(f"database next_relay_switch_time_value {in_sensor_name} {in_value}")
 
-        # TODO Might not return anything if there are no intervals for the sensor
-        return self.current_relay_interval_value(in_sensor_name, in_value)[1]["Time"]
+        # Might not return anything if there are no intervals for the sensor
+        currentInterval = self.current_relay_interval_value(in_sensor_name, in_value)
+        if len(currentInterval) == 0:
+            return {}
+        return currentInterval[1]["Time"]
 
     def find_triggers_until(self, in_sensor_name, in_start_time, in_end_time):
         # Find all the triggers against this sensor from start time until the end time is passed
