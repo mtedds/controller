@@ -111,7 +111,7 @@ class Controller:
         # Discover response
         elif ((msgCommand == COMMAND_INTERNAL) and
                 (msgType == I_DISCOVER_RESPONSE)):
-            self.processDiscoverResponse(gateway, msgNodeId, msgPayload)
+            self.process_discover_response(gateway, msgNodeId, msgPayload)
 
         # Node presentation
         elif ((msgCommand == COMMAND_PRESENTATION) and
@@ -136,10 +136,10 @@ class Controller:
 
         # Sensor set
         elif msgCommand == COMMAND_SET:
-            self.processSensorSet(gateway, msgNodeId, msgSensorId, msgType, msgPayload)
+            self.store_sensor_set(gateway, msgNodeId, msgSensorId, msgType, msgPayload)
 
-    def processDiscoverResponse(self, inGateway, inMyNode, inPayload):
-        self.logger.debug(f"controller processDiscoverResponse {inGateway}, {inMyNode}, {inPayload}")
+    def process_discover_response(self, inGateway, inMyNode, inPayload):
+        self.logger.debug(f"controller process_discover_response {inGateway}, {inMyNode}, {inPayload}")
         # Make sure that the node exists - even if just a skeleton framework
         values = {}
         values["MySensorsNodeId"] = inMyNode
@@ -220,24 +220,6 @@ class Controller:
         # Clear out any Once triggers as they will just confuse everything - even if this is not timed!
         self.thisDatabase.delete_once_triggers(in_sensor)
 
-        sensor_details = self.thisDatabase.find_sensor_by_name(in_sensor)
-
-        # Send the command to switch it
-        self.thisMessage.set_sensor(sensor_details["PublishTopic"],
-                                    sensor_details["MySensorsNodeId"],
-                                    sensor_details["MySensorsSensorId"],
-                                    sensor_details["VariableType"],
-                                    value)
-
-        # Update the Sensor with these details
-        values = {"NodeId": sensor_details["NodeId"],
-                  "MySensorsSensorId": sensor_details["MySensorsSensorId"],
-                  "VariableType": sensor_details["VariableType"],
-                  "CurrentValue": value}
-
-        self.thisDatabase.sensorCreateUpdate(
-            sensor_details["NodeId"], sensor_details["MySensorsSensorId"], values)
-
         # Check if we need to switch it back at appropriate time or let the permanent timers do their job
         if len(payload) > 1:
             time = payload[1]
@@ -257,6 +239,21 @@ class Controller:
             if not return_to_perm:
                 self.thisDatabase.create_once_trigger(in_sensor, -1, time, 1 - int(value))
 
+        # Finally switch the sensor - do it last so that any logic kicks in with the appropriate triggers in place
+        sensor_details = self.thisDatabase.find_sensor_by_name(in_sensor)
+
+        # Send the command to switch it
+        self.set_sensor_by_name(sensor_details["SensorName"], value)
+
+        # Update the Sensor with these details
+        values = {"NodeId": sensor_details["NodeId"],
+                  "MySensorsSensorId": sensor_details["MySensorsSensorId"],
+                  "VariableType": sensor_details["VariableType"],
+                  "CurrentValue": value}
+
+        self.thisDatabase.sensorCreateUpdate(
+            sensor_details["NodeId"], sensor_details["MySensorsSensorId"], values)
+
         return
 
     def process_trigger_set_from_ui(self, in_sensor, in_payload):
@@ -268,6 +265,7 @@ class Controller:
         value = int(payload[2])
         time = payload[3]
 
+        # TODO Remove all DHW programming...
         if in_sensor == "DHW":
             # val172 is Monday interval 1 - 3 intervals per day
             sensor_val = f"val{172 + day * 3 + group}"
@@ -289,8 +287,10 @@ class Controller:
                 self.thisMessage.set_sensor(publish_topic, 100, sensor_val, 48,
                                             f"{interval_start_time:d};{new_isg_time:d}")
 
+        # TODO Need to handle logic after trigger updates...
         return self.thisDatabase.update_trigger(in_sensor, day, group, value, time)
 
+    # TODO - throw this away. DHW will remain on constantly!
     def DHW_set(self, in_sensor, in_payload):
         self.logger.debug(f"controller DHW_set {in_sensor}, {in_payload}")
 
@@ -483,19 +483,19 @@ class Controller:
             new_operating_mode = 5
             trigger_status = "Inactive"
 
+        # TODO This is a hard-coded list! Really need this to be configured?
+        # TODO Move this to run_sensor_set_logic
         # Update all of the timed triggers for the Heating switches to be active or inactive
         self.thisDatabase.switch_triggers("Radiators relay", trigger_status)
         self.thisDatabase.switch_triggers("Ufloor ground relay", trigger_status)
         self.thisDatabase.switch_triggers("Ufloor first relay", trigger_status)
 
         mysensor = self.thisDatabase.find_sensor_by_name("Operating Mode")
+        return self.set_sensor_by_name("Operating Mode", new_operating_mode)
 
-        # Send the command to change the Operating Mode in the ISG
-        return self.thisMessage.set_sensor(mysensor["PublishTopic"], mysensor["MySensorsNodeId"],
-                                           mysensor["MySensorsSensorId"], mysensor["VariableType"], new_operating_mode)
-
-    def processSensorSet(self, inGateway, inMyNode, inMySensor, inVariableType, inValue):
-        self.logger.debug(f"controller processSensorSet {inGateway}, {inMyNode}, {inMySensor}, {inVariableType}, {inValue}")
+    # This takes a sensor set message sent by a node and stores the new value in the database
+    def store_sensor_set(self, inGateway, inMyNode, inMySensor, inVariableType, inValue):
+        self.logger.debug(f"controller store_sensor_set {inGateway}, {inMyNode}, {inMySensor}, {inVariableType}, {inValue}")
 
         # This handles ISG sending HC or DHW programme
         if inMySensor == "HC" or inMySensor == "DHW":
@@ -515,22 +515,13 @@ class Controller:
                       "CurrentValue": setValue}
             self.thisDatabase.sensorCreateUpdate(nodeId, inMySensor, values)
 
+            # TODO Need to run the sensor set logic run_sensor_set_logic
+
     def execute_action(self, in_action):
         self.logger.debug(f"controller execute_action {in_action['ActionId']} {in_action['SensorName']}")
 
         if in_action["Status"] == "Active" or in_action["Status"] == "Once":
-            sensor_details = self.thisDatabase.find_sensor_by_name(in_action["SensorName"])
-            if sensor_details is not None:
-                # If this is a Shelley set, it must be an internal process so send to subscribe queue
-                topic = sensor_details["PublishTopic"]
-                if topic[0:6] == "shelly":
-                    topic = sensor_details["SubscribeTopic"]
-                self.thisMessage.set_sensor(
-                        topic,
-                        sensor_details["MySensorsNodeId"],
-                        sensor_details["MySensorsSensorId"],
-                        in_action["VariableType"],
-                        in_action["SetValue"])
+            return self.set_sensor_by_name(in_action["SensorName"], in_action["SetValue"])
 
         if in_action["Status"] == "Replace":
             # Now update to the time from the Action
@@ -557,7 +548,7 @@ class Controller:
 
             # Send the command to switch it
             # - should really find the MySensors Node Id from the database - only node for this gateway...
-            self.thisMessage.set_sensor(publish_topic, 100, sensor_val, 48,
+            self.set_sensor(trigger[0]["Description"], publish_topic, 100, sensor_val, 48,
                                         f"{start_time:d};{end_time:d}")
 
             # And clean up the Action - trigger will be removed below
@@ -566,3 +557,31 @@ class Controller:
         if in_action["Status"] == "Once" or in_action["Status"] == "Replace":
             self.thisDatabase.object_delete("TimedTrigger", in_action["TimedTriggerId"])
 
+    # Generic function to set a sensor given its name
+    def set_sensor_by_name (self, inSensorName, inValue):
+        self.logger.debug(f"controller set_sensor_by_name {inSensorName} {inValue}")
+        sensor_details = self.thisDatabase.find_sensor_by_name(inSensorName)
+        if sensor_details is not None:
+            # If this is a Shelley set, it must be an internal process so send to subscribe queue
+            topic = sensor_details["PublishTopic"]
+            if topic[0:6] == "shelly":
+                topic = sensor_details["SubscribeTopic"]
+            return self.set_sensor(inSensorName, topic,
+                                   sensor_details["MySensorsNodeId"],
+                                   sensor_details["MySensorsSensorId"],
+                                   sensor_details["VariableType"],
+                                   inValue)
+
+        return 1
+
+    def set_sensor(self, inSensorName, inTopic, inNodeId, inSensorId, inVariableType, inValue):
+        self.logger.debug(f"controller set_sensor {inSensorName} {inTopic} {inNodeId} {inSensorId} {inVariableType} {inValue}")
+
+        self.thisMessage.set_sensor(inTopic, inNodeId, inSensorId, inVariableType, inValue)
+
+        return self.run_sensor_set_logic(inSensorName, inTopic, inNodeId, inSensorId, inVariableType, inValue)
+
+    def run_sensor_set_logic(self, inSensorName, inTopic, inNodeId, inSensorId, inVariableType, inValue):
+        self.logger.debug(f"controller run_sensor_set_logic {inSensorName} {inTopic} {inNodeId} {inSensorId} {inVariableType} {inValue}")
+
+        return

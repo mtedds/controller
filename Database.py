@@ -212,7 +212,7 @@ class Database:
         self.logger.debug(f"database find_sensor_by_name {inSensorName}")
         cursor = self.dbConnection.cursor()
         cursor.execute(
-                """select PublishTopic, SubscribeTopic, MySensorsNodeId, MySensorsSensorId, VariableType, Node.NodeId
+                """select SensorName, PublishTopic, SubscribeTopic, MySensorsNodeId, MySensorsSensorId, VariableType, Node.NodeId
                 from Gateway, Node, Sensor
                 where SensorName = ?
                 and Sensor.NodeId = Node.NodeId
@@ -220,6 +220,7 @@ class Database:
                 (inSensorName,))
         row = cursor.fetchone()
         cursor.close()
+
         return row
 
     def get_sensor_value_by_name(self, in_sensor_name):
@@ -546,6 +547,7 @@ class Database:
         self.object_create("TimedTrigger", values)
 
     def delete_once_triggers(self, in_sensor):
+        self.logger.debug(f"database delete_once_triggers {in_sensor}")
         cursor = self.dbConnection.cursor()
         cursor.execute(
             """delete from TimedTrigger
