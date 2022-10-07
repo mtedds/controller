@@ -248,10 +248,11 @@ class Database:
                        ELSE TimedTrigger.Day END Day
                 from TimedTrigger, Action
                 where TimedTrigger.ActionId = Action.ActionId
+                and TimedTrigger.Day in (-1, ?)
                 and to_seconds(Time) between ? and ?
                 order by to_seconds(Time), TimedTrigger.TimedTriggerId
                 """,
-                (in_day_number, inStartSeconds, inEndSeconds))
+                (in_day_number, in_day_number, inStartSeconds, inEndSeconds))
         actions = cursor.fetchall()
         cursor.close()
         return actions
