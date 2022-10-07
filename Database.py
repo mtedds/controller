@@ -235,22 +235,23 @@ class Database:
         cursor.close()
         return row["currentvalue"]
 
-    def timedActionsFired(self, inStartSeconds, inEndSeconds):
-        # TODO implement day of the week!!!
-        self.logger.debug(f"database timedActionsFired {inStartSeconds}, {inEndSeconds}")
+    def timed_actions_fired(self, in_day_number, inStartSeconds, inEndSeconds):
+        self.logger.debug(f"database timed_actions_fired {in_day_number} {inStartSeconds}, {inEndSeconds}")
         cursor = self.dbConnection.cursor()
         cursor.execute(
                 """select Action.ActionId, Action.SensorName, Action.VariableType, Action.SetValue
                 , Action.TimedTriggerToUpdate
                 , TimedTrigger.TimedTriggerID, TimedTrigger.Status
                 , TimedTrigger.Description Description
-                , TimedTrigger.Time, TimedTrigger.Day
+                , TimedTrigger.Time
+                , CASE WHEN TimedTrigger.Day < 0 then ?
+                       ELSE TimedTrigger.Day END Day
                 from TimedTrigger, Action
                 where TimedTrigger.ActionId = Action.ActionId
                 and to_seconds(Time) between ? and ?
                 order by to_seconds(Time), TimedTrigger.TimedTriggerId
                 """,
-                (inStartSeconds, inEndSeconds))
+                (in_day_number, inStartSeconds, inEndSeconds))
         actions = cursor.fetchall()
         cursor.close()
         return actions

@@ -43,26 +43,27 @@ class Controller:
         self.thisMessage.run_loop(maxTimeout)
 
         # Pick up from where we last left off
-        lastSeconds = self.thisDatabase.getLastSeconds()
+        last_seconds = self.thisDatabase.getLastSeconds()
         now = datetime.now()
         midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
         # If we failed and have now started the next day, go back to midnight and re-run everything
-        if lastSeconds > (now - midnight).seconds:
-            lastSeconds = 86400
+        if last_seconds > (now - midnight).seconds:
+            last_seconds = 86400
 
         while True:
             now = datetime.now()
+            day_number = now.weekday()
             seconds = (now - midnight).seconds
-            self.logger.debug(f"In loop, seconds={seconds}, lastSeconds={lastSeconds}")
+            self.logger.debug(f"In loop, seconds={seconds}, lastSeconds={last_seconds}")
             # This should handle midnight...
-            if lastSeconds > 86399:
+            if last_seconds > 86399:
                 self.logger.debug(f"In loop, Midnight crossed")
-                lastSeconds = -1
+                last_seconds = -1
                 midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
             # Only bother checking for actions if we have moved on from previous
-            if seconds > lastSeconds:
-                actions = self.thisDatabase.timedActionsFired(lastSeconds + 1, seconds)
+            if seconds > last_seconds:
+                actions = self.thisDatabase.timed_actions_fired(day_number, last_seconds + 1, seconds)
 
                 for actionRow in actions:
                     self.execute_action(actionRow)
@@ -73,8 +74,8 @@ class Controller:
                     if seconds + nextTime > 86399:
                         nextTime = 86399 - seconds
 
-            lastSeconds = seconds
-            self.thisDatabase.setLastSeconds(lastSeconds)
+            last_seconds = seconds
+            self.thisDatabase.setLastSeconds(last_seconds)
             self.thisMessage.run_loop(nextTime)
 
     # The callback for when a PUBLISH message is received from the server.
