@@ -85,10 +85,16 @@ class Controller:
         self.logger.info(f"Read message {msg.topic} {msgPayload}")
 
         topic_split = msg.topic.split("/")
-        msgPublishTopic = topic_split[0]
-        msgNodeId = topic_split[1]
-        msgSensorId = topic_split[2]
-        msgCommand = topic_split[3]
+
+        try:
+            msgPublishTopic = topic_split[0]
+            msgNodeId = topic_split[1]
+            msgSensorId = topic_split[2]
+            msgCommand = topic_split[3]
+        except:
+            self.logger.error(f"Read invalid message {msg.topic} {msgPayload}")
+            return
+
         if len(topic_split) > 5:
             msgType = topic_split[5]
         # Leaving this in for now but need to remove at some point!
@@ -97,7 +103,7 @@ class Controller:
 
         if msgPublishTopic not in {"Control", "shellies"}:
             gateway = self.thisDatabase.gatewayFindFromSubscribeTopic(msgPublishTopic)
-            self.thisDatabase.objectUpdate("Gateway", gateway["GatewayId"], {})
+            self.thisDatabase.object_update("Gateway", gateway["GatewayId"], {})
 
         # Process a message directly from a Shelly device or an internal command
         # Note that we have hard-coded the shelly device name and so may need to change if we add another
@@ -193,7 +199,7 @@ class Controller:
         values["MySensorsSensorId"] = inMySensor
         values["SensorName"] = inSensorName
         values["SensorType"] = inSensorType
-        self.thisDatabase.sensorCreateUpdate(nodeId, inMySensor, values)
+        self.thisDatabase.sensor_create_update(nodeId, inMySensor, values)
 
     def process_control(self, in_sensor, in_command, in_msg_type, in_payload):
         self.logger.debug(f"controller process_control {in_sensor}, {in_command}, {in_msg_type}, {in_payload}")
@@ -252,7 +258,7 @@ class Controller:
                   "VariableType": sensor_details["VariableType"],
                   "CurrentValue": value}
 
-        self.thisDatabase.sensorCreateUpdate(
+        self.thisDatabase.sensor_create_update(
             sensor_details["NodeId"], sensor_details["MySensorsSensorId"], values)
 
         return
@@ -411,7 +417,7 @@ class Controller:
                     self.thisDatabase.create_replace_trigger(in_sensor, current_day_of_week, interval_start_time_hhmm,
                                                              current_interval[0]["TimedTriggerId"])
                 update_values = {"Time": new_start_time_hhmm}
-                self.thisDatabase.objectUpdate("TimedTrigger", current_interval[0]["TimedTriggerId"], update_values)
+                self.thisDatabase.object_update("TimedTrigger", current_interval[0]["TimedTriggerId"], update_values)
 
             if new_end_time != interval_end_time:
                 if new_end_time < 96:
@@ -426,7 +432,7 @@ class Controller:
                     self.thisDatabase.create_replace_trigger(in_sensor, current_day_of_week, interval_end_time_hhmm,
                                                              current_interval[1]["TimedTriggerId"])
                 update_values = {"Time": new_end_time_hhmm}
-                self.thisDatabase.objectUpdate("TimedTrigger", current_interval[1]["TimedTriggerId"], update_values)
+                self.thisDatabase.object_update("TimedTrigger", current_interval[1]["TimedTriggerId"], update_values)
 
             # Send the command to change the interval in the ISG
             # - should really find the MySensors Node Id from the database - only node for this gateway...
@@ -448,7 +454,7 @@ class Controller:
                                                                  new_tomorrow_end_time_hhmm,
                                                                  tomorrow_interval[0]["TimedTriggerId"])
                     update_values = {"Time": new_tomorrow_start_time_hhmm}
-                    self.thisDatabase.objectUpdate("TimedTrigger", tomorrow_interval[0]["TimedTriggerId"], update_values)
+                    self.thisDatabase.object_update("TimedTrigger", tomorrow_interval[0]["TimedTriggerId"], update_values)
 
                 if new_tomorrow_end_time != tomorrow_interval_end_time:
                     if new_tomorrow_end_time < 96:
@@ -460,7 +466,7 @@ class Controller:
                                                              new_tomorrow_end_time_hhmm,
                                                              tomorrow_interval[1]["TimedTriggerId"])
                     update_values = {"Time": new_tomorrow_end_time_hhmm}
-                    self.thisDatabase.objectUpdate("TimedTrigger", tomorrow_interval[1]["TimedTriggerId"], update_values)
+                    self.thisDatabase.object_update("TimedTrigger", tomorrow_interval[1]["TimedTriggerId"], update_values)
 
                 # Send the command to change the interval in the ISG
                 # - should really find the MySensors Node Id from the database - only node for this gateway...
@@ -514,7 +520,7 @@ class Controller:
             # Update the Sensor with these details
             values = {"NodeId": nodeId, "MySensorsSensorId": inMySensor, "VariableType": inVariableType,
                       "CurrentValue": setValue}
-            self.thisDatabase.sensorCreateUpdate(nodeId, inMySensor, values)
+            self.thisDatabase.sensor_create_update(nodeId, inMySensor, values)
 
             # TODO Need to run the sensor set logic run_sensor_set_logic
 
@@ -527,7 +533,7 @@ class Controller:
         if in_action["Status"] == "Replace":
             # Now update to the time from the Action
             updates = {"Time": in_action["SetValue"]}
-            self.thisDatabase.objectUpdate("TimedTrigger", in_action["TimedTriggerToUpdate"], updates)
+            self.thisDatabase.object_update("TimedTrigger", in_action["TimedTriggerToUpdate"], updates)
 
             # and send the updated interval back to the ISG
             # Assumes that on / off combinations are in strict numerical order - on then off

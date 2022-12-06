@@ -47,3 +47,6 @@ insert into timedtrigger (timedtriggerid, description, day, time, actionid, stat
 insert into timedtrigger (timedtriggerid, description, day, time, actionid, status) values (63,"Ufloor First Prog Sun 0 off", 6, "23:00:00", 8, "Active");
 
 insert into timedtrigger (timedtriggerid, description, day, time, actionid, status) values (64,"Reset daily consumption", -1, "00:00:01", 9, "Active");
+
+insert into timedtrigger (timedtriggerid, description, day, time, actionid, status) values (65,"Boost DHW off peak", -1, "05:30:00", 10, "Active");
+insert into timedtrigger (timedtriggerid, description, day, time, actionid, status) values (66,"Unboost DHW off peak", -1, "06:29:00", 11, "Active");

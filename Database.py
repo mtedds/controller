@@ -1,6 +1,7 @@
 
 import sqlite3
 from datetime import datetime
+import os.path
 
 
 # This function is used to convert times (HH:MM:SS) to seconds
@@ -24,6 +25,10 @@ class Database:
         self.dbConnection.row_factory = sqlite3.Row
 
         self.dbConnection.create_function("to_seconds", 1, timeConvert)
+
+        # TODO Parameterise the history database
+        history_database_name = f"{os.path.dirname(inDatabaseFilename)}/controller_history.db"
+        self.dbConnection.execute(f"attach database '{history_database_name}' as 'history'")
 
     def getLastSeconds(self):
         self.logger.debug(f"database getLastSeconds")
@@ -167,11 +172,11 @@ class Database:
         cursor.close()
         return rows
 
-    def objectUpdate(self, inTable, inKeyValue, inUpdates):
+    def object_update(self, inTable, inKeyValue, inUpdates):
         # Takes a key field value with a set of updates and applies to the node row
         # Assumes key column name is "Table"Id, eg. NodeId
         # Also updates the last seen date time
-        self.logger.debug(f"database objectUpdate {inTable}, {inKeyValue}, {inUpdates}")
+        self.logger.debug(f"database object_update {inTable}, {inKeyValue}, {inUpdates}")
         sql = "update " + inTable + " set "
         for column in inUpdates.keys():
             sql = sql + column + "=?,"
@@ -191,22 +196,28 @@ class Database:
         self.logger.debug(f"database nodeCreateUpdate {inGatewayId}, {inMyNode}, {inValues}")
         nodeFound = self.nodeFindFromMyNode(inGatewayId, inMyNode)
         if nodeFound >= 0:
-            self.objectUpdate("Node", nodeFound, inValues)
+            self.object_update("Node", nodeFound, inValues)
         elif nodeFound == -1:
             nodeFound = self.object_create("Node", inValues)
         return nodeFound
 
     # Check if the sensor exists and create if not
     # We are only provided the owning NodeId and MySensors Sensor Id
-    def sensorCreateUpdate(self, inNodeId, inMySensor, inValues):
-        self.logger.debug(f"database sensorCreateUpdate {inNodeId}, {inMySensor}, {inValues}")
-        sensorFound = self.sensorFindFromMySensor(inNodeId, inMySensor)
-        if sensorFound >= 0:
-            self.objectUpdate("Sensor", sensorFound, inValues)
-            return 1
-        elif sensorFound == -1:
-            sensorFound = self.object_create("Sensor", inValues)
-        return sensorFound
+    def sensor_create_update(self, inNodeId, inMySensor, inValues):
+        self.logger.debug(f"database sensor_create_update {inNodeId}, {inMySensor}, {inValues}")
+        sensor_found = self.sensorFindFromMySensor(inNodeId, inMySensor)
+        if sensor_found >= 0:
+            self.object_update("Sensor", sensor_found, inValues)
+        elif sensor_found == -1:
+            sensor_found = self.object_create("Sensor", inValues)
+
+        self.dbConnection.execute(
+            f"""insert into history.sensor_history (SensorId, Value, Time)
+                select sensorid, currentvalue, lastseen
+                from sensor where sensorId = {sensor_found}
+             """)
+
+        return sensor_found
 
     def find_sensor_by_name(self, inSensorName):
         self.logger.debug(f"database find_sensor_by_name {inSensorName}")
