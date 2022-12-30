@@ -209,6 +209,8 @@ class Controller:
             self.process_sensor_set_from_ui(in_sensor, in_payload)
         elif in_msg_type == 25:
             self.process_trigger_set_from_ui(in_sensor, in_payload)
+        elif in_msg_type == 26:
+            self.process_savingsession_set_from_ui(in_sensor, in_payload)
 
     def process_sensor_set_from_ui(self, in_sensor, in_payload):
         self.logger.debug(f"controller process_sensor_set_from_ui {in_sensor}, {in_payload}")
@@ -250,7 +252,7 @@ class Controller:
         sensor_details = self.thisDatabase.find_sensor_by_name(in_sensor)
 
         # Send the command to switch it
-        self.set_sensor_by_name(sensor_details["SensorName"], value)
+        self.set_sensor_by_name(sensor_details["SensorName"], value, sensor_details["VariableType"])
 
         # Update the Sensor with these details
         values = {"NodeId": sensor_details["NodeId"],
@@ -296,6 +298,30 @@ class Controller:
 
         # TODO Need to handle logic after trigger updates...
         return self.thisDatabase.update_trigger(in_sensor, day, group, value, time)
+
+    def process_savingsession_set_from_ui(self, in_sensor, in_payload):
+        self.logger.debug(f"controller process_savingsession_set_from_ui {in_sensor}, {in_payload}")
+
+        payload = in_payload.split(" ")
+
+        # Always clear out the old ones
+        self.thisDatabase.delete_prefixed_triggers("SS ")
+
+        self.logger.debug(f"controller process_savingsession_set_from_ui len(payload) {len(payload)}, {in_payload}")
+
+        # If no new values sent then this is a clear request
+        if payload[0] == "None":
+            return
+
+        day_of_week = int(days_of_week[payload[0]])
+        start_time = payload[1]
+        end_time = payload[2]
+
+        for relay in ['Radiators relay', 'Ufloor ground relay', 'Ufloor first relay']:
+            self.thisDatabase.create_trigger(relay, day_of_week, start_time, 0, "Once", f"SS {relay}")
+            self.thisDatabase.create_trigger(relay, day_of_week, end_time, 1, "Once", f"SS {relay}")
+
+        return 0
 
     # TODO - throw this away. DHW will remain on constantly!
     def DHW_set(self, in_sensor, in_payload):
@@ -498,7 +524,7 @@ class Controller:
         self.thisDatabase.switch_triggers("Ufloor first relay", trigger_status)
 
         mysensor = self.thisDatabase.find_sensor_by_name("Operating Mode")
-        return self.set_sensor_by_name("Operating Mode", new_operating_mode)
+        return self.set_sensor_by_name("Operating Mode", new_operating_mode, 24)
 
     # This takes a sensor set message sent by a node and stores the new value in the database
     def store_sensor_set(self, inGateway, inMyNode, inMySensor, inVariableType, inValue):
@@ -528,7 +554,7 @@ class Controller:
         self.logger.debug(f"controller execute_action {in_action['ActionId']} {in_action['SensorName']}")
 
         if in_action["Status"] == "Active" or in_action["Status"] == "Once":
-            return self.set_sensor_by_name(in_action["SensorName"], in_action["SetValue"])
+            return self.set_sensor_by_name(in_action["SensorName"], in_action["SetValue"], in_action["VariableType"])
 
         if in_action["Status"] == "Replace":
             # Now update to the time from the Action
@@ -565,9 +591,15 @@ class Controller:
             self.thisDatabase.object_delete("TimedTrigger", in_action["TimedTriggerId"])
 
     # Generic function to set a sensor given its name
-    def set_sensor_by_name (self, inSensorName, inValue):
+    def set_sensor_by_name (self, inSensorName, inValue, in_variable_type):
         self.logger.debug(f"controller set_sensor_by_name {inSensorName} {inValue}")
         sensor_details = self.thisDatabase.find_sensor_by_name(inSensorName)
+
+        # If this is a set sensor from other sensor, go get the value
+        setValue = inValue
+        if in_variable_type == "Sensor":
+            setValue = self.thisDatabase.get_sensor_value_by_name(inValue)
+
         if sensor_details is not None:
             # If this is a Shelley set, it must be an internal process so send to subscribe queue
             topic = sensor_details["PublishTopic"]
@@ -577,7 +609,7 @@ class Controller:
                                    sensor_details["MySensorsNodeId"],
                                    sensor_details["MySensorsSensorId"],
                                    sensor_details["VariableType"],
-                                   inValue)
+                                   setValue)
 
         return 1
 

@@ -574,6 +574,17 @@ class Database:
             (in_sensor,))
         cursor.close()
 
+    def delete_prefixed_triggers(self, in_prefix):
+        self.logger.debug(f"database delete_prefix_triggers {in_prefix}")
+        cursor = self.dbConnection.cursor()
+        cursor.execute(
+            """delete from TimedTrigger
+                    where description like ?
+                    and Status = "Once"
+                    """,
+            (f"{in_prefix}%",))
+        cursor.close()
+
     def find_replace_triggers(self, in_sensor):
         # TODO implement day of the week!!!
         self.logger.debug(f"database find_replace_triggers {in_sensor}")
@@ -736,3 +747,26 @@ class Database:
             sensor_dict[sensor["SensorName"]] = sensor["CurrentValue"]
 
         return sensor_dict
+
+    def read_savingsession(self):
+        self.logger.debug(f"database read_savingsession")
+
+        cursor = self.dbConnection.cursor()
+        cursor.execute(
+            """select Day, Time
+                    from TimedTrigger
+                    where Description like 'SS %'
+                    group by Day, Time
+                    order by Day, Time
+                    """)
+        times = cursor.fetchall()
+        cursor.close()
+
+        if len(times) < 1:
+            return {}
+        elif len(times) == 1:
+            return {"dayofweek": times[0]["Day"], "starttime": times[0]["Time"], "endtime": times[0]["Time"]}
+        if len(times) == 2:
+            return {"dayofweek": times[0]["Day"], "starttime": times[0]["Time"], "endtime": times[1]["Time"]}
+        else:
+            return {}
