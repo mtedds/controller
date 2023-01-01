@@ -203,6 +203,7 @@ class Database:
 
     # Check if the sensor exists and create if not
     # We are only provided the owning NodeId and MySensors Sensor Id
+    # Returns the SensorId of the sensor found / created
     def sensor_create_update(self, inNodeId, inMySensor, inValues):
         self.logger.debug(f"database sensor_create_update {inNodeId}, {inMySensor}, {inValues}")
         sensor_found = self.sensorFindFromMySensor(inNodeId, inMySensor)

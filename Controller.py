@@ -4,6 +4,7 @@ import json
 from Database import Database
 from Message import Message
 from Shelly import Shelly
+from Logic import Logic
 
 from MySensorsConstants import *
 
@@ -34,6 +35,8 @@ class Controller:
             self.thisMessage.discover(gateway_publishes)
 
         self.this_shelly = Shelly(self.thisMessage, self.thisDatabase, self.logger)
+
+        self.this_logic = Logic(self.thisMessage, self.thisDatabase, self.logger)
 
         # This is the maximum time we will wait for a message
         # Should be half the mqtt timeout duration
@@ -254,14 +257,16 @@ class Controller:
         # Send the command to switch it
         self.set_sensor_by_name(sensor_details["SensorName"], value, sensor_details["VariableType"])
 
+# Taken all of this out as the sensor should respond with the change in a message
+# and we will then process that change
         # Update the Sensor with these details
-        values = {"NodeId": sensor_details["NodeId"],
-                  "MySensorsSensorId": sensor_details["MySensorsSensorId"],
-                  "VariableType": sensor_details["VariableType"],
-                  "CurrentValue": value}
+#        values = {"NodeId": sensor_details["NodeId"],
+#                  "MySensorsSensorId": sensor_details["MySensorsSensorId"],
+#                  "VariableType": sensor_details["VariableType"],
+#                  "CurrentValue": value}
 
-        self.thisDatabase.sensor_create_update(
-            sensor_details["NodeId"], sensor_details["MySensorsSensorId"], values)
+#        self.thisDatabase.sensor_create_update(
+#            sensor_details["NodeId"], sensor_details["MySensorsSensorId"], values)
 
         return
 
@@ -546,9 +551,11 @@ class Controller:
             # Update the Sensor with these details
             values = {"NodeId": nodeId, "MySensorsSensorId": inMySensor, "VariableType": inVariableType,
                       "CurrentValue": setValue}
-            self.thisDatabase.sensor_create_update(nodeId, inMySensor, values)
+            sensor_id = self.thisDatabase.sensor_create_update(nodeId, inMySensor, values)
 
-            # TODO Need to run the sensor set logic run_sensor_set_logic
+            self.this_logic.run_sensor_set_logic(sensor_id, setValue)
+
+        return
 
     def execute_action(self, in_action):
         self.logger.debug(f"controller execute_action {in_action['ActionId']} {in_action['SensorName']}")
@@ -590,7 +597,7 @@ class Controller:
         if in_action["Status"] == "Once" or in_action["Status"] == "Replace":
             self.thisDatabase.object_delete("TimedTrigger", in_action["TimedTriggerId"])
 
-    # Generic function to set a sensor given its name
+    # Generic function to send a message set a sensor given its name
     def set_sensor_by_name (self, inSensorName, inValue, in_variable_type):
         self.logger.debug(f"controller set_sensor_by_name {inSensorName} {inValue}")
         sensor_details = self.thisDatabase.find_sensor_by_name(inSensorName)
@@ -613,14 +620,9 @@ class Controller:
 
         return 1
 
+    # Sends out the message to instruct a node to set a sensor to a particular value
     def set_sensor(self, inSensorName, inTopic, inNodeId, inSensorId, inVariableType, inValue):
         self.logger.debug(f"controller set_sensor {inSensorName} {inTopic} {inNodeId} {inSensorId} {inVariableType} {inValue}")
 
-        self.thisMessage.set_sensor(inTopic, inNodeId, inSensorId, inVariableType, inValue)
+        return self.thisMessage.set_sensor(inTopic, inNodeId, inSensorId, inVariableType, inValue)
 
-        return self.run_sensor_set_logic(inSensorName, inTopic, inNodeId, inSensorId, inVariableType, inValue)
-
-    def run_sensor_set_logic(self, inSensorName, inTopic, inNodeId, inSensorId, inVariableType, inValue):
-        self.logger.debug(f"controller run_sensor_set_logic {inSensorName} {inTopic} {inNodeId} {inSensorId} {inVariableType} {inValue}")
-
-        return
