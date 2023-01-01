@@ -24,6 +24,8 @@ class Shelly:
         self.presentation()
         self.discover_response()
 
+        self.last_values = {}
+
     # The callback for when a PUBLISH message is received from the server.
     def process_message(self, in_message):
         self.logger.debug(f"shelly process_message {in_message}")
@@ -43,6 +45,13 @@ class Shelly:
             sensor_value = str(in_message.payload.decode("UTF-8"))
 
             if shelly_sensor_id == "0" and shelly_sensor in self.sensors.keys():
+
+                # Only publish changed values
+                if shelly_sensor in self.last_values and sensor_value == self.last_values[shelly_sensor]:
+                    return
+
+                self.last_values[shelly_sensor] = sensor_value
+
                 self.message_handler.set_sensor(shelly_device_name, self.node_id, self.sensors[shelly_sensor]["id"],
                                                 self.sensors[shelly_sensor]["variable"], sensor_value)
 

@@ -85,7 +85,9 @@ class Controller:
     def when_message(self, client, userdata, msg):
         self.logger.debug(f"controller when_message {client}, {userdata}, {msg}")
         msgPayload = str(msg.payload.decode("UTF-8"))
-        self.logger.info(f"Read message {msg.topic} {msgPayload}")
+
+        if msg.topic[:9] != "shellies/":
+            self.logger.info(f"Read message {msg.topic} {msgPayload}")
 
         topic_split = msg.topic.split("/")
 

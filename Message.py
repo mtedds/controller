@@ -130,7 +130,7 @@ class Message:
                str(inMySensorsSensorId) + "/" +
                str(COMMAND_SET) + "/0/" +
                str(inVariableType))
-        self.logger.info(f"message set_sensor publishing {msg} {inSetValue}")
+        #self.logger.info(f"message set_sensor publishing {msg} {inSetValue}")
         self.mqttClient.publish(msg, str(inSetValue))
 
     def publish(self, in_topic, in_payload):
