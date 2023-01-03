@@ -30,28 +30,28 @@ class Database:
         history_database_name = f"{os.path.dirname(inDatabaseFilename)}/controller_history.db"
         self.dbConnection.execute(f"attach database '{history_database_name}' as 'history'")
 
-    def getLastSeconds(self):
-        self.logger.debug(f"database getLastSeconds")
+    def get_state_by_name(self, in_state_name):
+        self.logger.debug(f"database get_state_by_name {in_state_name}")
         cursor = self.dbConnection.cursor()
         cursor.execute(
-                """select Value
+                f"""select Value
                 from State
-                where Name = "LastSeconds"
+                where Name = "{in_state_name}"
                 """
                 )
         row = cursor.fetchone()
         cursor.close()
         return row[0]
 
-    def setLastSeconds(self, inLastSeconds):
-        self.logger.debug(f"database setLastSeconds {inLastSeconds}")
+    def set_state_by_name(self, in_state_name, in_value):
+        self.logger.debug(f"database set_state_by_name {in_state_name} {in_value}")
         cursor = self.dbConnection.cursor()
         cursor.execute(
-                """Update State
+                f"""Update State
                 set Value = ?
-                where Name = "LastSeconds"
+                where Name = "{in_state_name}"
                 """,
-                (inLastSeconds,)
+                (in_value,)
                 )
         cursor.close()
         self.dbConnection.commit()

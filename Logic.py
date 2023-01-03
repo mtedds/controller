@@ -1,4 +1,4 @@
-from MySensorsConstants import *
+from datetime import datetime
 
 # This class is used to handle all sensor logic, eg. when turn radiators on, make sure HC is on
 
@@ -14,6 +14,7 @@ class Logic:
 
         self.logic_methods = {
             'Ensuite humidity': self.logic_ensuite_humidity,
+            'Ensuite light switch': self.logic_ensuite_light,
         }
 
     # Find the sensor, check if it has a function and then call it
@@ -38,6 +39,30 @@ class Logic:
 
             if float(in_sensor_value) < 55.0 and self.database.get_sensor_value_by_name("Ensuite fan boost relay") == "1":
                 self.set_sensor_by_name("Ensuite fan boost relay", "0")
+
+        return
+
+    def logic_ensuite_light(self, in_sensor_name, in_sensor_value):
+        self.logger.debug(f"logic logic_ensuite_humidity {in_sensor_name} {in_sensor_value}")
+
+        # If daytime and light turned on, turn on fan after 2 minutes
+        # If daytime and light turned off, execute the humidity logic
+
+        if self.database.get_sensor_value_by_name("Ensuite fan control relay") == "1":
+            time_now = datetime.now()
+            morning = self.database.get_state_by_name("Morning").split(":")
+            morning_time = time_now.replace(hour=int(morning[0]), minute=int(morning[1]), second=int(morning[2]))
+            evening = self.database.get_state_by_name("Evening").split(":")
+            evening_time = time_now.replace(hour=int(evening[0]), minute=int(evening[1]), second=int(evening[2]))
+
+            if morning_time <= time_now <= evening_time:
+                if in_sensor_value == "1":
+                    # TODO: Need to insert a 2 minute delay somehow...
+                    # Needs to check not already turned off - just apply the light switch sensor!
+                    self.set_sensor_by_name("Ensuite fan control relay", "1")
+                else:
+                    return self.logic_ensuite_humidity("Ensuite humidity",
+                                                       self.database.get_sensor_value_by_name("Ensuite humidity"))
 
         return
 

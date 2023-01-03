@@ -46,7 +46,7 @@ class Controller:
         self.thisMessage.run_loop(maxTimeout)
 
         # Pick up from where we last left off
-        last_seconds = self.thisDatabase.getLastSeconds()
+        last_seconds = self.thisDatabase.get_state_by_name("LastSeconds")
         now = datetime.now()
         midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
         # If we failed and have now started the next day, go back to midnight and re-run everything
@@ -78,7 +78,7 @@ class Controller:
                         nextTime = 86399 - seconds
 
             last_seconds = seconds
-            self.thisDatabase.setLastSeconds(last_seconds)
+            self.thisDatabase.set_state_by_name("LastSeconds", last_seconds)
             self.thisMessage.run_loop(nextTime)
 
     # The callback for when a PUBLISH message is received from the server.
