@@ -43,10 +43,11 @@ class Logic:
         return
 
     def logic_ensuite_light(self, in_sensor_name, in_sensor_value):
-        self.logger.debug(f"logic logic_ensuite_humidity {in_sensor_name} {in_sensor_value}")
+        self.logger.debug(f"logic logic_ensuite_light {in_sensor_name} {in_sensor_value}")
 
-        # If daytime and light turned on, turn on fan after 2 minutes
-        # If daytime and light turned off, execute the humidity logic
+        # If daytime and light turned on, turn on fan after 2 minutes (TODO)
+        # If daytime and light turned off, execute the humidity logic - assumes fan has a delay
+        # During the night, switch is ignored and only humidity controls boost
 
         if self.database.get_sensor_value_by_name("Ensuite fan control relay") == "1":
             time_now = datetime.now()
@@ -59,7 +60,7 @@ class Logic:
                 if in_sensor_value == "1":
                     # TODO: Need to insert a 2 minute delay somehow...
                     # Needs to check not already turned off - just apply the light switch sensor!
-                    self.set_sensor_by_name("Ensuite fan control relay", "1")
+                    self.set_sensor_by_name("Ensuite fan boost relay", "1")
                 else:
                     return self.logic_ensuite_humidity("Ensuite humidity",
                                                        self.database.get_sensor_value_by_name("Ensuite humidity"))
