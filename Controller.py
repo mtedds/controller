@@ -563,7 +563,7 @@ class Controller:
         self.logger.debug(f"controller execute_action {in_action['ActionId']} {in_action['SensorName']}")
 
         if in_action["Status"] == "Active" or in_action["Status"] == "Once":
-            return self.set_sensor_by_name(in_action["SensorName"], in_action["SetValue"], in_action["VariableType"])
+            self.set_sensor_by_name(in_action["SensorName"], in_action["SetValue"], in_action["VariableType"])
 
         if in_action["Status"] == "Replace":
             # Now update to the time from the Action
