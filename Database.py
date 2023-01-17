@@ -342,24 +342,45 @@ class Database:
         now = datetime.now()
         # Monday is zero in both cases
         current_day_of_week = now.weekday()
+        next_day_of_week = (current_day_of_week + 1) % 7
         current_time = now.hour * 60 + now.minute
 
         cursor = self.dbConnection.cursor()
         # Note Once is alphabetically before Active in a descending sort - need to find Once triggers before Active
+        #
+        # Also note that we have had to Union in the triggers for tomorrow in case we set a Once trigger
+        # that is created for any day (by the UI) which has a time that is earlier than the current time
+        # (eg. at 23:15 set the heating on time to 03:00) as this was being treated as the current day and being missed
+        # That guarantees we have complete coverage for the daily triggers
         cursor.execute(
             f"""select SetValue
-            , case Day when -1 then {current_day_of_week} else Day end Day
-            , Time
-            , SetValue
-            , Status
-            , TimedTriggerId
-            , TimedTrigger.Description
-            from Action, TimedTrigger
-            where SensorName = ?
-            and TimedTrigger.ActionId = Action.ActionId
-            and TimedTrigger.Status in ("Active", "External", "Once")
-            order by Day, to_seconds(Time), Status desc""",
-            (in_sensor_name, ))
+                , case Day when -1 then {current_day_of_week} else Day end Day
+                , Time
+                , to_seconds(Time) Secs
+                , SetValue
+                , Status
+                , TimedTriggerId
+                , TimedTrigger.Description
+                from Action, TimedTrigger
+                where SensorName = ?
+                and TimedTrigger.ActionId = Action.ActionId
+                and TimedTrigger.Status in ("Active", "External", "Once")
+                union all
+                select SetValue
+                , case Day when -1 then {next_day_of_week} else Day end Day
+                , Time
+                , to_seconds(Time) Secs
+                , SetValue
+                , Status
+                , TimedTriggerId
+                , TimedTrigger.Description
+                from Action, TimedTrigger
+                where SensorName = ?
+                and TimedTrigger.ActionId = Action.ActionId
+                and TimedTrigger.Status in ("Active", "External", "Once")
+                and Day = -1
+                order by Day, Secs, Status desc""",
+            (in_sensor_name, in_sensor_name,))
         trigger_times = cursor.fetchall()
         cursor.close()
 
