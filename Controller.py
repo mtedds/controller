@@ -327,6 +327,9 @@ class Controller:
         for relay in ['Radiators relay', 'Ufloor ground relay', 'Ufloor first relay']:
             self.thisDatabase.create_trigger(relay, day_of_week, start_time, 0, "Once", f"SS {relay}")
             self.thisDatabase.create_trigger(relay, day_of_week, end_time, 1, "Once", f"SS {relay}")
+        # And switch the HP to Standby
+        self.thisDatabase.create_trigger("Operating Mode", day_of_week, start_time, 1, "Once", "SS Operating Mode")
+        self.thisDatabase.create_trigger("Operating Mode", day_of_week, end_time, 2, "Once", "SS Operating Mode")
 
         return 0
 
