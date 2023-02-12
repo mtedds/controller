@@ -260,6 +260,7 @@ class Database:
                     sensor_found[sensor_number]["SensorId"] = self.object_create("Sensor", inValues)
 
         elif len(sensor_found) == 0:
+            sensor_found = {sensor_number: {}}
             sensor_found[sensor_number]["SensorId"] = self.object_create("Sensor", inValues)
 
         self.dbConnection.execute(
