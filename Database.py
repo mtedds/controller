@@ -1,4 +1,3 @@
-
 import sqlite3
 from datetime import datetime
 import os.path
@@ -9,7 +8,7 @@ def timeConvert(inTime):
     # Commented out as this could impact database performance
     # self.logger.debug(f"database timeConvert {inTime}")
     numbers = inTime.split(":")
-    return (int(numbers[0])*60 + int(numbers[1])) * 60 + int(numbers[2])
+    return (int(numbers[0]) * 60 + int(numbers[1])) * 60 + int(numbers[2])
 
 
 class Database:
@@ -34,11 +33,11 @@ class Database:
         self.logger.debug(f"database get_state_by_name {in_state_name}")
         cursor = self.dbConnection.cursor()
         cursor.execute(
-                f"""select Value
+            f"""select Value
                 from State
                 where Name = "{in_state_name}"
                 """
-                )
+        )
         row = cursor.fetchone()
         cursor.close()
         return row[0]
@@ -47,12 +46,12 @@ class Database:
         self.logger.debug(f"database set_state_by_name {in_state_name} {in_value}")
         cursor = self.dbConnection.cursor()
         cursor.execute(
-                f"""Update State
+            f"""Update State
                 set Value = ?
                 where Name = "{in_state_name}"
                 """,
-                (in_value,)
-                )
+            (in_value,)
+        )
         cursor.close()
         self.dbConnection.commit()
         return 0
@@ -77,13 +76,13 @@ class Database:
         self.logger.debug(f"database gatewayFindFromSubscribeTopic {inSubscribeTopic}")
         cursor = self.dbConnection.cursor()
         cursor.execute(
-                """select GatewayId, GatewayName,
+            """select GatewayId, GatewayName,
                 BrokerHost, ClientId,
                 SubscribeTopic, PublishTopic,
                 Username, Password, LastSeen
                 from Gateway
                 where SubscribeTopic = ?""",
-                (inSubscribeTopic,))
+            (inSubscribeTopic,))
         row = cursor.fetchone()
         cursor.close()
         return row
@@ -93,34 +92,40 @@ class Database:
         # Should probably do something if find more than one...
         cursor = self.dbConnection.cursor()
         cursor.execute(
-                """select ifnull(max(nodeid), -1) as NodeId
+            """select ifnull(max(nodeid), -1) as NodeId
                 from Node
                 where GatewayId = ?
                 and MySensorsNodeId = ?""",
-                (inGatewayId, inMyNode))
+            (inGatewayId, inMyNode))
         row = cursor.fetchone()
         cursor.close()
         return row["NodeId"]
 
+    # Called from sensor_create_update
+    # Finds all of the sensor records with varying variable types
     def sensorFindFromMySensor(self, inNodeId, inMySensor):
         self.logger.debug(f"database sensorFindFromMySensor {inNodeId}, {inMySensor}")
         # Should probably do something if find more than one...
+        # This can happen - Climate sensors have multiple values - separated by Type
         cursor = self.dbConnection.cursor()
         cursor.execute(
-                """select ifnull(max(SensorId), -1)
+            """select SensorId
+                , VariableType
+                , SensorName
+                , SensorType
                 from Sensor
                 where NodeId = ?
                 and MySensorsSensorId = ?""",
-                (inNodeId, inMySensor))
-        row = cursor.fetchone()
+            (inNodeId, inMySensor))
+        rows = cursor.fetchall()
         cursor.close()
-        return row[0]
+        return rows
 
     def getNextId(self, inTable):
         self.logger.debug(f"database getNextId {inTable}")
         # Find the next Id for a generic table - start at 1
         cursor = self.dbConnection.cursor()
-        sql = "select ifnull(max("+inTable+"id) + 1, 1) from "+inTable
+        sql = "select ifnull(max(" + inTable + "id) + 1, 1) from " + inTable
         cursor.execute(sql)
         row = cursor.fetchone()
         cursor.close()
@@ -152,7 +157,7 @@ class Database:
             f"""delete from {in_table}
                     where {in_table}Id = ?
                     """,
-            (in_key_value, ))
+            (in_key_value,))
         cursor.close()
 
     def object_find(self, in_table, in_filters):
@@ -184,6 +189,7 @@ class Database:
         sql = sql + "where " + inTable + "id=?"
         vals = list(inUpdates.values())
         vals.append(inKeyValue)
+        self.logger.debug(f"database object_update SQL: {sql} {vals}")
         cursor = self.dbConnection.cursor()
         cursor.execute(sql, vals)
         self.dbConnection.commit()
@@ -202,34 +208,78 @@ class Database:
         return nodeFound
 
     # Check if the sensor exists and create if not
-    # We are only provided the owning NodeId and MySensors Sensor Id
+    # We are only provided the owning NodeId, MySensors Sensor Id and Variable Type
     # Returns the SensorId of the sensor found / created
+    # If this is a sensor presentation, the Variable Type will be ""
     def sensor_create_update(self, inNodeId, inMySensor, inValues):
         self.logger.debug(f"database sensor_create_update {inNodeId}, {inMySensor}, {inValues}")
+        sensor_number = 0
+
         sensor_found = self.sensorFindFromMySensor(inNodeId, inMySensor)
-        if sensor_found >= 0:
-            self.object_update("Sensor", sensor_found, inValues)
-        elif sensor_found == -1:
-            sensor_found = self.object_create("Sensor", inValues)
+
+        self.logger.debug(f"database sensor_create_update found sensors {sensor_found}, length {len(sensor_found)}")
+
+        if len(sensor_found) == 1:
+            # Check if the appropriate variable type or blank
+            if inValues["VariableType"] == "" or \
+                    sensor_found[sensor_number]["VariableType"] == inValues["VariableType"] or \
+                    sensor_found[sensor_number]["VariableType"] is None or \
+                    sensor_found[sensor_number]["VariableType"] == "":
+                if inValues["VariableType"] == "":
+                    inValues["VariableType"] = sensor_found[sensor_number]["VariableType"]
+                self.object_update("Sensor", sensor_found[sensor_number]["SensorId"], inValues)
+            else:
+                inValues["SensorName"] = sensor_found[sensor_number]["SensorName"]
+                inValues["SensorType"] = sensor_found[sensor_number]["SensorType"]
+                sensor_found[sensor_number]["SensorId"] = self.object_create("Sensor", inValues)
+
+        elif len(sensor_found) > 1:
+            # Find the right sensor to update
+            # If sensor presentation, update all of them - but with the variable type included
+            if inValues["VariableType"] == "":
+                for sensor_number in range(len(sensor_found)):
+                    inValues["VariableType"] = sensor_found[sensor_number]["VariableType"]
+                    self.object_update("Sensor", sensor_found[sensor_number]["SensorId"], inValues)
+            else:
+                # We need to find the specific variable type
+                while sensor_number < len(sensor_found) and \
+                        sensor_found[sensor_number]["VariableType"] != inValues["VariableType"]:
+                    sensor_number = sensor_number + 1
+
+                if sensor_number < len(sensor_found):
+                    # Found one so update it
+                    self.logger.debug(
+                        f"database sensor_create_update found sensor number {sensor_number} {sensor_found[sensor_number]['SensorId']}")
+                    self.object_update("Sensor", sensor_found[sensor_number]["SensorId"], inValues)
+                else:
+                    # Didn't find one so create it
+                    self.logger.debug(f"database sensor_create_update cant find sensor {sensor_number}")
+                    inValues["SensorName"] = sensor_found[0]["SensorName"]
+                    inValues["SensorType"] = sensor_found[0]["SensorType"]
+                    sensor_found[sensor_number] = {}
+                    sensor_found[sensor_number]["SensorId"] = self.object_create("Sensor", inValues)
+
+        elif len(sensor_found) == 0:
+            sensor_found[sensor_number]["SensorId"] = self.object_create("Sensor", inValues)
 
         self.dbConnection.execute(
-            f"""insert into history.sensor_history (SensorId, Value, Time)
-                select sensorid, currentvalue, lastseen
-                from sensor where sensorId = {sensor_found}
+            f"""insert into history.sensor_history (SensorId, VariableType, Value, Time)
+                select sensorid, variabletype, currentvalue, lastseen
+                from sensor where sensorId = {sensor_found[sensor_number]["SensorId"]}
              """)
 
-        return sensor_found
+        return sensor_found[sensor_number]["SensorId"]
 
     def find_sensor_by_name(self, inSensorName):
         self.logger.debug(f"database find_sensor_by_name {inSensorName}")
         cursor = self.dbConnection.cursor()
         cursor.execute(
-                """select SensorName, PublishTopic, SubscribeTopic, MySensorsNodeId, MySensorsSensorId, VariableType, Node.NodeId
+            """select SensorName, PublishTopic, SubscribeTopic, MySensorsNodeId, MySensorsSensorId, VariableType, Node.NodeId
                 from Gateway, Node, Sensor
                 where SensorName = ?
                 and Sensor.NodeId = Node.NodeId
                 and Node.GatewayId = Gateway.GatewayId""",
-                (inSensorName,))
+            (inSensorName,))
         row = cursor.fetchone()
         cursor.close()
 
@@ -247,11 +297,25 @@ class Database:
         cursor.close()
         return row["currentvalue"]
 
+    def get_sensor_value_by_name_type(self, in_sensor_name, in_variable_type):
+        self.logger.debug(f"database get_sensor_value_by_name {in_sensor_name} {in_variable_type}")
+        cursor = self.dbConnection.cursor()
+        cursor.execute(
+            """select ifnull(CurrentValue, "") as currentvalue
+            from Sensor
+            where SensorName = ?
+            and VariableType = ?""",
+            (in_sensor_name, in_variable_type))
+        row = cursor.fetchone()
+        cursor.close()
+        return row["currentvalue"]
+
     def timed_actions_fired(self, in_day_number, inStartSeconds, inEndSeconds):
         self.logger.debug(f"database timed_actions_fired {in_day_number} {inStartSeconds}, {inEndSeconds}")
         cursor = self.dbConnection.cursor()
         cursor.execute(
-                """select Action.ActionId, Action.SensorName, Action.VariableType, Action.SetValue
+            """select Action.ActionId, Action.SensorName, Action.VariableType, Action.SetValue
+                , Action.ActionType
                 , Action.TimedTriggerToUpdate
                 , TimedTrigger.TimedTriggerID, TimedTrigger.Status
                 , TimedTrigger.Description Description
@@ -264,7 +328,7 @@ class Database:
                 and to_seconds(Time) between ? and ?
                 order by to_seconds(Time), TimedTrigger.TimedTriggerId
                 """,
-                (in_day_number, in_day_number, inStartSeconds, inEndSeconds))
+            (in_day_number, in_day_number, inStartSeconds, inEndSeconds))
         actions = cursor.fetchall()
         cursor.close()
         return actions
@@ -277,14 +341,14 @@ class Database:
         cursor = self.dbConnection.cursor()
         # If cannot find anything, return 24 hours (ie max + 1)
         cursor.execute(
-                """select ifnull(min(to_seconds(TimedTrigger.Time)), 86400) as Seconds
+            """select ifnull(min(to_seconds(TimedTrigger.Time)), 86400) as Seconds
                 from TimedTrigger
                 where to_seconds(TimedTrigger.Time) > ?
                 and day in (-1, ?)
                 and Status in ("Active", "Once", "Replace")
                 order by to_seconds(TimedTrigger.Time) asc
                 """,
-                (inSeconds, current_day_of_week))
+            (inSeconds, current_day_of_week))
         seconds = cursor.fetchone()
         cursor.close()
         return seconds["Seconds"]
@@ -390,7 +454,7 @@ class Database:
 
         # Prime the previous trigger just in case we are early on Monday morning
         # - set it to the very last trigger in the week (last on Sunday)
-        return_triggers = {0: trigger_times[len(trigger_times)-1]}
+        return_triggers = {0: trigger_times[len(trigger_times) - 1]}
 
         # This is set when we process a Once trigger that is masking an Active trigger at the same time
         ignore_next = False
@@ -431,7 +495,6 @@ class Database:
             # - or use it anyway if we have come in with a -1 value (just find current interval)
             if (trigger["SetValue"] == in_value or in_value == -1) and not midnight:
                 return_triggers[0] = trigger
-
 
         # Must be end of Sunday so next trigger is first thing on Monday
         return_triggers[1] = trigger_times[0]
@@ -555,7 +618,8 @@ class Database:
         self.object_create("TimedTrigger", values)
 
     def create_trigger(self, in_sensor_name, in_day, in_time, in_value, in_type, in_description):
-        self.logger.debug(f"database create_trigger {in_sensor_name} {in_day} {in_time} {in_value} {in_type} {in_description}")
+        self.logger.debug(
+            f"database create_trigger {in_sensor_name} {in_day} {in_time} {in_value} {in_type} {in_description}")
 
         # Find an action that matches
         # TODO - what if there isn't an action!!!
@@ -612,7 +676,7 @@ class Database:
         self.logger.debug(f"database find_replace_triggers {in_sensor}")
         cursor = self.dbConnection.cursor()
         cursor.execute(
-                """select Action.ActionId, Action.SensorName, Action.VariableType, Action.SetValue
+            """select Action.ActionId, Action.SensorName, Action.VariableType, Action.SetValue
                 , Action.TimedTriggerToUpdate
                 , TimedTrigger.TimedTriggerID, TimedTrigger.Status
                 , TimedTrigger.Description Description
@@ -623,7 +687,7 @@ class Database:
                 and Action.SensorName = ?
                 order by to_seconds(Time), TimedTrigger.TimedTriggerId
                 """,
-                (in_sensor, ))
+            (in_sensor,))
         actions = cursor.fetchall()
         cursor.close()
         return actions
@@ -670,7 +734,7 @@ class Database:
                     where Sensorname = ?
                     order by SetValue
                     """,
-            (in_sensor, ))
+            (in_sensor,))
         actions = cursor.fetchall()
         cursor.close()
 

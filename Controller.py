@@ -204,6 +204,8 @@ class Controller:
         values["MySensorsSensorId"] = inMySensor
         values["SensorName"] = inSensorName
         values["SensorType"] = inSensorType
+        # Dummy variable type required as sensor_create_update requires it
+        values["VariableType"] = ""
         self.thisDatabase.sensor_create_update(nodeId, inMySensor, values)
 
     def process_control(self, in_sensor, in_command, in_msg_type, in_payload):
@@ -548,17 +550,12 @@ class Controller:
             # This will update the last seen date time and create the node if not found
             nodeId = self.thisDatabase.nodeCreateUpdate(inGateway["GatewayId"], inMyNode, values)
 
-            # If this is a set sensor from other sensor, go get the value
-            setValue = inValue
-            if inVariableType == "Sensor":
-                setValue = self.thisDatabase.get_sensor_value_by_name(inValue)
-
             # Update the Sensor with these details
             values = {"NodeId": nodeId, "MySensorsSensorId": inMySensor, "VariableType": inVariableType,
-                      "CurrentValue": setValue}
+                      "CurrentValue": inValue}
             sensor_id = self.thisDatabase.sensor_create_update(nodeId, inMySensor, values)
 
-            self.this_logic.run_sensor_set_logic(sensor_id, setValue)
+            self.this_logic.run_sensor_set_logic(sensor_id, inValue)
 
         return
 
@@ -566,7 +563,8 @@ class Controller:
         self.logger.debug(f"controller execute_action {in_action['ActionId']} {in_action['SensorName']}")
 
         if in_action["Status"] == "Active" or in_action["Status"] == "Once":
-            self.set_sensor_by_name(in_action["SensorName"], in_action["SetValue"], in_action["VariableType"])
+            self.set_sensor_by_name(in_action["SensorName"], in_action["SetValue"],
+                                    in_action["VariableType"], in_action["ActionType"])
 
         if in_action["Status"] == "Replace":
             # Now update to the time from the Action
@@ -603,13 +601,13 @@ class Controller:
             self.thisDatabase.object_delete("TimedTrigger", in_action["TimedTriggerId"])
 
     # Generic function to send a message set a sensor given its name
-    def set_sensor_by_name (self, inSensorName, inValue, in_variable_type):
-        self.logger.debug(f"controller set_sensor_by_name {inSensorName} {inValue}")
+    def set_sensor_by_name (self, inSensorName, inValue, in_variable_type, in_action_type):
+        self.logger.debug(f"controller set_sensor_by_name {inSensorName} {inValue} {in_variable_type} {in_action_type}")
         sensor_details = self.thisDatabase.find_sensor_by_name(inSensorName)
 
         # If this is a set sensor from other sensor, go get the value
         setValue = inValue
-        if in_variable_type == "Sensor":
+        if in_action_type == "Forward":
             setValue = self.thisDatabase.get_sensor_value_by_name(inValue)
 
         if sensor_details is not None:
