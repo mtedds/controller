@@ -2,6 +2,7 @@ from datetime import datetime
 from datetime import timedelta
 from MySensorsConstants import *
 
+
 # This class is used to handle all sensor logic, eg. when turn radiators on, make sure HC is on
 
 
@@ -36,17 +37,20 @@ class Logic:
                                  ["Utility fan control relay",
                                   "Utility fan boost relay",
                                   "Utility light switch",
-                                  "Utility humidity"]],
+                                  "Utility humidity",
+                                  "Utility fan mains relay"]],
             'Utility light switch': [self.u_logic_fan_boost,
-                                 ["Utility fan control relay",
-                                  "Utility fan boost relay",
-                                  "Utility light switch",
-                                  "Utility humidity"]],
+                                     ["Utility fan control relay",
+                                      "Utility fan boost relay",
+                                      "Utility light switch",
+                                      "Utility humidity",
+                                      "Utility fan mains relay"]],
             'Utility fan boost relay': [self.u_logic_fan_boost,
-                                 ["Utility fan control relay",
-                                  "Utility fan boost relay",
-                                  "Utility light switch",
-                                  "Utility humidity"]],
+                                        ["Utility fan control relay",
+                                         "Utility fan boost relay",
+                                         "Utility light switch",
+                                         "Utility humidity",
+                                         "Utility fan mains relay"]],
             # Utility underfloor heating control (Climate sensor type...)
             'Utility heating': [self.logic_heat_control,
                                 ["Utility ufloor relay", ]]
@@ -66,7 +70,7 @@ class Logic:
         if len(sensor) == 1:
             if sensor[0]["SensorName"] in self.logic_methods:
                 # Call the appropriate method with the sensor name, value and arguments defined above
-                # TODO: Drop the id, name and value from the arguments and have the methdd use the sensor dictionary
+                # TODO: Drop the id, name and value from the arguments and have the method use the sensor dictionary
                 self.logic_methods[sensor[0]["SensorName"]][0](sensor[0],
                                                                in_sensor_id, sensor[0]["SensorName"], in_sensor_value,
                                                                self.logic_methods[sensor[0]["SensorName"]][1])
@@ -121,12 +125,14 @@ class Logic:
         # 2 = Relay to set to switch boost on / off
         # 3 = Sensor for light switch on / off
         # 4 = Humidity sensor
+        # 5 = Relay for mains supply to fan to switch off / on completely
         self.logger.debug(f"logic logic_fan_boost {in_sensor_id} {in_sensor_name} {in_sensor_value} {in_arguments}")
 
         control_relay = in_arguments[0]
         boost_relay = in_arguments[1]
         light_switch = in_arguments[2]
         humidity_sensor = in_arguments[3]
+        mains_relay = in_arguments[4]
 
         if "humidity" in in_sensor_name:
             humidity = float(in_sensor_value)
@@ -156,22 +162,23 @@ class Logic:
             time_of_day = "day"
 
         # Logic:
-        # If the humidity is too high, clear all timers and fan boost on (if not already)
+        # If the humidity is too high, clear all timers and fan boost and fan mains on (if not already)
         # Else if we are on a timer to switch off and not a light switch on, no change
         # Else if light switched on and boost off and during day,
-        #   clear all timers and set timed trigger to light switch in <N> minutes
+        #   switch on mains, clear all timers and set timed trigger to light switch in <N> minutes
         # Else if light switch off and not on humidity boost,
         #   clear all timers and set timed trigger to switch to light switch in <M> minutes
-        # Else if humidity and humidity below limit, switch off
+        # Else if humidity and humidity below medium limit, switch off boot
+        # Else if humidity below low list, switch off mains
 
         if self.database.get_sensor_value_by_name(control_relay) == "1":
 
             # If the humidity is too high, fan boost on (if not already)
-            # TODO Add the temperatures to the state table (or as a sensor?)
-            if humidity > 60.0:
+            if humidity > float(self.database.get_state_by_name("Humidity high point")):
                 self.humidity_boost[humidity_sensor] = 1
                 if boost == 0:
                     self.database.delete_once_triggers(boost_relay)
+                    self.set_sensor_by_name(mains_relay, V_STATUS, "1")
                     self.set_sensor_by_name(boost_relay, V_STATUS, "1")
 
             # Else if we are on a timer to switch off and not a light switch on, no change
@@ -202,12 +209,22 @@ class Logic:
                                              "Delayed fan off")
 
             # Else if humidity and humidity below limit, switch off
-            # TODO Add the temperatures to the state table (or as a sensor?)
-            elif self.humidity_boost[humidity_sensor] == 1 and humidity < 55.0:
+            elif self.humidity_boost[humidity_sensor] == 1 and \
+                    humidity < float(self.database.get_state_by_name("Humidity medium point")):
                 self.humidity_boost[humidity_sensor] = 0
                 if boost == 1:
                     self.database.delete_once_triggers(boost_relay)
                     self.set_sensor_by_name(boost_relay, V_STATUS, "0")
+
+            # Else if humidity above medium limit, make sure mains is on
+            elif humidity > float(self.database.get_state_by_name("Humidity medium point")) and \
+                    int(self.database.get_sensor_value_by_name(mains_relay)) == 0:
+                self.set_sensor_by_name(mains_relay, V_STATUS, "1")
+
+            # Else if humidity and humidity below low limit, switch mains off
+            elif humidity < float(self.database.get_state_by_name("Humidity low point")) and \
+                    int(self.database.get_sensor_value_by_name(mains_relay)) == 1:
+                self.set_sensor_by_name(mains_relay, V_STATUS, "0")
 
         return
 
