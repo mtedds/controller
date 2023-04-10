@@ -5,8 +5,6 @@ import os.path
 
 # This function is used to convert times (HH:MM:SS) to seconds
 def timeConvert(inTime):
-    # Commented out as this could impact database performance
-    # self.logger.debug(f"database timeConvert {inTime}")
     numbers = inTime.split(":")
     return (int(numbers[0]) * 60 + int(numbers[1])) * 60 + int(numbers[2])
 

@@ -104,7 +104,7 @@ class Controller:
             msgType = topic_split[5]
         # Leaving this in for now but need to remove at some point!
         # - really useful to see what is going on
-        print(msg.topic+" "+msgPayload)
+        print(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} {msg.topic} {msgPayload}")
 
         if msgPublishTopic not in {"Control", "shellies"}:
             gateway = self.thisDatabase.gatewayFindFromSubscribeTopic(msgPublishTopic)
@@ -259,7 +259,7 @@ class Controller:
         sensor_details = self.thisDatabase.find_sensor_by_name(in_sensor)
 
         # Send the command to switch it
-        self.set_sensor_by_name(sensor_details["SensorName"], value, sensor_details["VariableType"])
+        self.set_sensor_by_name(sensor_details["SensorName"], value, sensor_details["VariableType"], "SetValue")
 
 # Taken all of this out as the sensor should respond with the change in a message
 # and we will then process that change
@@ -536,7 +536,7 @@ class Controller:
         self.thisDatabase.switch_triggers("Ufloor first relay", trigger_status)
 
         mysensor = self.thisDatabase.find_sensor_by_name("Operating Mode")
-        return self.set_sensor_by_name("Operating Mode", new_operating_mode, 24)
+        return self.set_sensor_by_name("Operating Mode", new_operating_mode, 24, "SetValue")
 
     # This takes a sensor set message sent by a node and stores the new value in the database
     def store_sensor_set(self, inGateway, inMyNode, inMySensor, inVariableType, inValue):
@@ -601,7 +601,7 @@ class Controller:
             self.thisDatabase.object_delete("TimedTrigger", in_action["TimedTriggerId"])
 
     # Generic function to send a message set a sensor given its name
-    def set_sensor_by_name (self, inSensorName, inValue, in_variable_type, in_action_type):
+    def set_sensor_by_name(self, inSensorName, inValue, in_variable_type, in_action_type):
         self.logger.debug(f"controller set_sensor_by_name {inSensorName} {inValue} {in_variable_type} {in_action_type}")
         sensor_details = self.thisDatabase.find_sensor_by_name(inSensorName)
 

@@ -188,7 +188,8 @@ class Logic:
 
             # Else if light switched on and boost off and during day,
             #   clear all timers and set timed trigger to light switch in <N> minutes
-            elif sensor == "light" and time_of_day == "day" and boost == 0:
+            # Note that this covers cases when already or not on boost
+            elif sensor == "light" and light == 1 and time_of_day == "day":
                 self.database.delete_once_triggers(boost_relay)
                 delayed_datetime = time_now + \
                                    timedelta(minutes=self.database.get_state_by_name("Fan boost startup delay"))
@@ -273,7 +274,7 @@ class Logic:
         # Logic:
         # If the humidity is too high, clear all timers and fan boost on (if not already)
         # Else if we are on a timer to switch off and not a light switch on, no change
-        # Else if light switched on and boost off and during day,
+        # Else if light switched on and during day,
         #   clear all timers and set timed trigger to light switch in <N> minutes
         # Else if light switch off and not on humidity boost,
         #   clear all timers and set timed trigger to switch to light switch in <M> minutes
@@ -294,9 +295,10 @@ class Logic:
                     not (sensor == "light" and light == 1):
                 pass
 
-            # Else if light switched on and boost off and during day,
+            # Else if light switched on and during day,
             #   clear all timers and set timed trigger to light switch in <N> minutes
-            elif sensor == "light" and time_of_day == "day" and boost == 0:
+            # Note that this covers cases when already or not on boost
+            elif sensor == "light" and light == 1 and time_of_day == "day":
                 self.database.delete_once_triggers(boost_relay)
                 delayed_datetime = time_now + \
                                    timedelta(minutes=self.database.get_state_by_name("Fan boost startup delay"))
