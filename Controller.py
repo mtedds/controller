@@ -27,7 +27,7 @@ class Controller:
         all_gateways = self.thisDatabase.gatewaySubscribes()
         all_gateways.append("shellies")
         all_gateways.append("Control")
-        self.thisMessage = Message("homeserver", 1883, 60, "controller",
+        self.thisMessage = Message("ubuntu-b", 1883, 60, "controller",
                                    self.when_message, all_gateways,
                                    self.logger)
 
